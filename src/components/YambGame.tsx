@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, recordWin } from '../lib/supabase';
 import {
   YambGameState, ColumnKey, RowKey, ROWS_ORDER, ROW_LABELS,
   calculateScore, canSelectCell, getColumnTotals, getGrandTotal, createEmptySheet
@@ -122,17 +122,23 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
       return totalCells >= 52;
     });
 
-    let winnerId: string | null = null;
-    if (allFinished) {
-      let bestScore = -1;
-      players.forEach((p) => {
-        const total = getGrandTotal(updatedSheets[p.player_id]);
-        if (total > bestScore) {
-          bestScore = total;
-          winnerId = p.player_id;
-        }
-      });
-    }
+     let winnerId: string | null = null;
+ if (allFinished) {
+   let bestScore = -1;
+   let winnerNick = '';
+   players.forEach((p) => {
+     const total = getGrandTotal(updatedSheets[p.player_id]);
+     if (total > bestScore) {
+       bestScore = total;
+       winnerId = p.player_id;
+       winnerNick = p.nickname;
+     }
+   });
+   if (winnerNick) {
+     await recordWin(winnerNick, bestScore, 'Yamb');
+   }
+ }
+
 
     const currentIdx = players.findIndex((p) => p.player_id === currentPlayerId);
     const nextPlayer = players[(currentIdx + 1) % players.length];

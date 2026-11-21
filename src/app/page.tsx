@@ -1,4 +1,5 @@
 'use client';
+import Leaderboard from '../components/Leaderboard';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -425,6 +426,10 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+           <div className="mt-10">
+       <Leaderboard />
+     </div>
+
     </div>
   );
 }
