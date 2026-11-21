@@ -3,21 +3,19 @@
 import React, { useState } from 'react';
 import { Radio, X, Minimize2 } from 'lucide-react';
 
-const LIVE_RADIO_VIDEO_ID = 'b-bK2Vn3D38';
-
 export default function RadioPlayer() {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isHidden, setIsHidden] = useState<boolean>(false);
 
   return (
     <div className="fixed bottom-3 right-3 z-50 flex flex-col items-end gap-2">
-      {/* Dritarja e vogel e YouTube qe rri e hapur ne sfond edhe kur minimizohet */}
+      {/* Spotify Embed i vogel qe fshihet pa u ndalur zeri */}
       {isOpen && (
         <div
           className={`bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden transition-all ${
             isHidden
               ? 'w-1 h-1 opacity-0 pointer-events-none fixed bottom-0 right-0'
-              : 'w-64 p-2'
+              : 'w-72 p-2'
           }`}
         >
           <div className="flex items-center justify-between px-1 pb-1.5 text-[11px] text-slate-300">
@@ -43,16 +41,16 @@ export default function RadioPlayer() {
             </div>
           </div>
 
-          <div className="w-full h-36 rounded-xl overflow-hidden bg-black">
-            <iframe
-              width="100%"
-              height="100%"
-              src={`https://youtube.com{LIVE_RADIO_VIDEO_ID}?autoplay=1&playsinline=1&rel=0`}
-              title="GameZone Radio Live"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
+          <iframe
+            style={{ borderRadius: '12px' }}
+            src="https://spotify.com"
+            width="100%"
+            height="152"
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            title="GameZone Spotify Radio"
+          />
         </div>
       )}
 
