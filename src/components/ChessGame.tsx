@@ -115,7 +115,7 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
         })}
       </div>
 
-      <div className="w-full max-w-[520px] aspect-square mx-auto p-3 sm:p-4 bg-gradient-to-br from-[#3b2313] via-[#4a2c18] to-[#29170b] rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] border-2 border-amber-500/60">
+      <div className="w-full max-w-[520px] aspect-square mx-auto p-3.5 sm:p-5 bg-gradient-to-b from-[#4e2e18] via-[#361e0e] to-[#1f1006] rounded-[32px] shadow-[0_14px_0_#1a0d05,0_30px_60px_rgba(0,0,0,0.95)] border-2 border-amber-400/70">
         <div className="w-full h-full grid grid-cols-8 grid-rows-8 rounded-xl overflow-hidden border-2 border-amber-500/50">
           {rows.map((r) => cols.map((c) => {
             const isLight = (r + c) % 2 === 0;
@@ -128,13 +128,13 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
             const toC = gameState.lastMove?.to?.at(1);
             const isLast = (fromR === r && fromC === c) || (toR === r && toC === c);
             const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
-            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-[#f5ebd6]' : 'bg-[#5c3a21]';
+            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-gradient-to-br from-[#f7ecd7] to-[#e4cfa8] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]' : 'bg-gradient-to-br from-[#6e4427] to-[#472914] shadow-[inset_0_2px_4px_rgba(0,0,0,0.45)]';
             const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
             return (
               <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
                 {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold select-none ${txtCol}`}>{8 - r}</span>}
                 {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[10px] font-extrabold select-none ${txtCol}`}>{files[c]}</span>}
-                {piece && (<div className={`w-[86%] h-[86%] z-10 transition-transform ${isSel ? 'scale-110 -translate-y-0.5' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
+                {piece && (<div className={`w-[92%] h-[92%] -mt-1.5 z-10 transition-transform ${isSel ? 'scale-110 -translate-y-0.5' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
                 {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-black/20 z-20" />)}
                 {isTarget && piece && (<span className="absolute inset-1 rounded-full border-[5px] border-black/20 z-20" />)}
               </button>
