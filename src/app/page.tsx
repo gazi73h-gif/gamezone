@@ -65,7 +65,7 @@ const GAMES: GameInfo[] = [
   {
     id: 'rummy',
     title: 'Rummy / Jol',
-    subtitle: '106 letra + Xhola, hapja e serive',
+    subtitle: '106 gurë + Xhola, steka druri 3D',
     players: '2 - 4 LojtarÃ«',
     icon: <LayoutGrid className="w-8 h-8" />,
     color: 'from-purple-500 to-violet-700',
