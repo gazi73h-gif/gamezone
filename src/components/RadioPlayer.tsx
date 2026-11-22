@@ -1,14 +1,21 @@
 ﻿'use client';
 
 import React, { useState, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { Radio, Play, Square } from 'lucide-react';
 
 const STREAM_URL = 'https://' + 'antares.dribbcast.com' + '/proxy/s8140/stream';
 
 export default function RadioPlayer() {
+  const pathname = usePathname();
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Hiq butonin e radios nga të gjitha lojërat dhe dhomat
+  if (pathname?.startsWith('/room') || pathname !== '/') {
+    return null;
+  }
 
   const handleToggle = async () => {
     const audio = audioRef.current;
