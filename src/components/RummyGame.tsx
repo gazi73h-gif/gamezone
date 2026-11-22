@@ -5,13 +5,18 @@ import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, Layers, ArrowDownToLine, Sparkles, ArrowUpDown, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 interface RummyGameProps { gameState: RummyGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: RummyGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
 const SUIT_UI: Record<Suit, { sym: string; color: string }> = { hearts: { sym: '♥', color: 'text-red-600' }, diamonds: { sym: '♦', color: 'text-red-600' }, spades: { sym: '♠', color: 'text-slate-900' }, clubs: { sym: '♣', color: 'text-slate-900' } };
-function cardRank(n: number) { return n === 1 ? 'A' : n === 11 ? 'J' : n === 12 ? 'Q' : n === 13 ? 'K' : String(n); }
+function getCardImageUrl(tile: RummyTile): string {
+  if (tile.isJoker) return tile.suit === 'hearts' ? 'https://deckofcardsapi.com' : 'https://deckofcardsapi.com';
+  const r = tile.number === 1 ? 'A' : tile.number === 10 ? '0' : tile.number === 11 ? 'J' : tile.number === 12 ? 'Q' : tile.number === 13 ? 'K' : String(tile.number);
+  const s = tile.suit === 'hearts' ? 'H' : tile.suit === 'diamonds' ? 'D' : tile.suit === 'spades' ? 'S' : 'C';
+  return `https://deckofcardsapi.com{r}${s}.png`;
+}
+
 function CardView({ tile, selected, isNew, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
-  const s = SUIT_UI[tile.suit || 'spades'];
-  const bg = isNew ? 'bg-gradient-to-b from-amber-100 via-amber-200 to-amber-300 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'bg-white shadow-md';
   return (
-    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl border border-slate-300 flex flex-col justify-between transition-all ${bg} ${small ? 'w-9 h-13 p-1' : 'w-12 h-18 sm:w-14 sm:h-20 p-1.5 cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-xl z-20' : ''}`}>
-      {tile.isJoker ? (<div className="flex flex-col items-center justify-center h-full text-purple-700"><Crown className={small ? 'w-4 h-4 fill-amber-400 text-amber-500' : 'w-6 h-6 fill-amber-400 text-amber-500'} /><span className="text-[8px] font-black">JOKER</span></div>) : (<><div className={`flex flex-col items-start leading-none font-black ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} ${s.color}`}><span>{cardRank(tile.number)}</span><span>{s.sym}</span></div><div className={`self-end leading-none ${small ? 'text-sm' : 'text-lg sm:text-xl'} ${s.color}`}>{s.sym}</div></>)}
+    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-lg overflow-hidden bg-white transition-all shadow-[0_4px_10px_rgba(0,0,0,0.65)] ${small ? 'w-10 h-14' : 'w-14 h-20 sm:w-16 sm:h-24 cursor-pointer hover:-translate-y-1.5'} ${selected ? '-translate-y-3.5 ring-3 ring-amber-400 shadow-[0_12px_20px_rgba(0,0,0,0.85)] z-20' : ''} ${isNew ? 'ring-3 ring-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.95)]' : ''}`}>
+      <img src={getCardImageUrl(tile)} alt="card" draggable={false} className="w-full h-full object-cover pointer-events-none" />
+      {isNew && <div className="absolute inset-0 bg-amber-400/25 pointer-events-none" />}
     </button>
   );
 }
