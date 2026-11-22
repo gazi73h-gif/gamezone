@@ -5,7 +5,7 @@ import { Radio, Play, Square, SkipForward } from 'lucide-react';
 
 const STATIONS = [
   { name: 'Chill Lounge', url: 'https://somafm.com' },
-  { name: 'Radio Paradise', url: 'https://radioparadise.com' },
+  { name: 'FIP Groove', url: 'https://radiofrance.fr' },
 ];
 
 export default function RadioPlayer() {
@@ -26,11 +26,16 @@ export default function RadioPlayer() {
     } else {
       setIsLoading(true);
       try {
-        audio.load();
         await audio.play();
         setIsPlaying(true);
       } catch {
-        setIsPlaying(false);
+        try {
+          audio.load();
+          await audio.play();
+          setIsPlaying(true);
+        } catch {
+          setIsPlaying(false);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -40,26 +45,14 @@ export default function RadioPlayer() {
   const handleNextStation = () => {
     const nextIdx = (stationIndex + 1) % STATIONS.length;
     setStationIndex(nextIdx);
-    if (isPlaying) {
-      setIsLoading(true);
-      setTimeout(async () => {
-        const audio = audioRef.current;
-        if (!audio) return;
-        try {
-          audio.load();
-          await audio.play();
-        } catch {
-          setIsPlaying(false);
-        } finally {
-          setIsLoading(false);
-        }
-      }, 150);
-    }
+    setIsPlaying(false);
+    setIsLoading(false);
   };
 
   return (
     <div className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5">
       <audio
+        key={currentStation.url}
         ref={audioRef}
         src={currentStation.url}
         preload="none"
