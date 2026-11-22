@@ -193,7 +193,20 @@ export default function RoomLobbyPage() {
   }
 
   if (room.status === 'playing' && room.game_type === 'rummy' && room.game_state) {
-    return (<div className="min-h-screen bg-slate-950 text-white pb-10"><div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between"><button onClick={handleLeaveRoom} className="text-sm text-slate-400 hover:text-white">← Dil nga dhoma</button><span className="text-xs font-bold text-amber-400">Kodi: {roomCode}</span></div><RummyGame gameState={room.game_state as RummyGameState} currentPlayerId={currentPlayerId} isHost={room.host_id === currentPlayerId} onUpdateState={async (ns) => { await supabase.from('rooms').update({ game_state: ns }).eq('code', roomCode); }} onRestartGame={handleStartGame} /></div>);
+    return (
+      <div className="min-h-screen bg-[#080d12] text-white">
+        <RummyGame
+          gameState={room.game_state as RummyGameState}
+          currentPlayerId={currentPlayerId}
+          isHost={room.host_id === currentPlayerId}
+          onUpdateState={async (ns) => {
+            await supabase.from('rooms').update({ game_state: ns }).eq('code', roomCode);
+          }}
+          onRestartGame={handleStartGame}
+          onLeaveRoom={handleLeaveRoom}
+        />
+      </div>
+    );
   }
 
   if (room.status === 'playing' && room.game_type === 'ludo' && room.game_state) { return (<div className="min-h-screen bg-slate-950 text-white pb-10"><div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between"><button onClick={handleLeaveRoom} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition cursor-pointer"><ArrowLeft className="w-4 h-4" />Dil nga loja</button><span className="text-xs font-mono text-slate-400">Dhoma: <strong className="text-amber-400">{room.code}</strong></span></div><div className="px-3"><LudoGame gameState={room.game_state as LudoGameState} currentPlayerId={currentPlayerId} isHost={room.host_id === currentPlayerId} onUpdateState={async (newState) => { await supabase.from('rooms').update({ game_state: newState }).eq('code', roomCode); }} onRestartGame={handleStartGame} /></div></div>); }

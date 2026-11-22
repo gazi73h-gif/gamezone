@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { LudoColor, LudoGameState, SAFE_GLOBAL_CELLS, getMovableTokenIndices, moveLudoToken, rollLudoDice, getValidTokenMoves, moveLudoToken, toGlobalPos } from '@/lib/ludoLogic';
+import { LudoColor, LudoGameState, SAFE_GLOBAL_CELLS, getMovableTokenIndices, moveLudoToken, rollLudoDice, toGlobalPos } from '@/lib/ludoLogic';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Maximize2, Star, Crown } from 'lucide-react';
 interface LudoGameProps { gameState: LudoGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: LudoGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
@@ -53,13 +53,13 @@ export default function LudoGame({ gameState, currentPlayerId, isHost, onUpdateS
   const containerRef = useRef<HTMLDivElement | null>(null);
   const winRecordedRef = useRef(false);
   const [isRolling, setIsRolling] = useState(false);
-  useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== 'BOT_LUDO') return; const t = setTimeout(async () => { if (!gameState.hasRolled) { await onUpdateState(rollLudoDice(gameState, 'BOT_LUDO')); } else { const idx = getValidTokenMoves(gameState, 'BOT_LUDO').at(0); if (idx !== undefined) await onUpdateState(moveLudoToken(gameState, 'BOT_LUDO', idx)); } }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
+  useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== 'BOT_LUDO') return; const t = setTimeout(async () => { if (!gameState.hasRolled) { await onUpdateState(rollLudoDice(gameState, 'BOT_LUDO')); } else { const b = gameState.players['BOT_LUDO']; const idx = b && gameState.diceValue !== null ? getMovableTokenIndices(b, gameState.diceValue).at(0) : undefined; if (idx !== undefined) await onUpdateState(moveLudoToken(gameState, 'BOT_LUDO', idx)); } }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
   const currentPlayer = gameState.players[gameState.currentTurn];
   const me = gameState.players[currentPlayerId];
   const movable = isMyTurn && gameState.hasRolled && gameState.diceValue !== null && me ? getMovableTokenIndices(me, gameState.diceValue) : [];
   useEffect(() => { if (gameState.status !== 'finished') { winRecordedRef.current = false; return; } if (winRecordedRef.current) return; const w = gameState.winnerId ? gameState.players[gameState.winnerId] : null; if (w && w.id === currentPlayerId) { winRecordedRef.current = true; recordWin(w.nickname, 100, 'Ludo (Mos u zemëro)'); } }, [gameState.status, gameState.winnerId, gameState.players, currentPlayerId]);
-  const handleRoll = () => { if (!isMyTurn || gameState.hasRolled || isRolling) return; setIsRolling(true); setTimeout(async () => { const u = rollLudoDice, getValidTokenMoves, moveLudoToken(gameState, currentPlayerId); setIsRolling(false); await onUpdateState(u); }, 250); };
+  const handleRoll = () => { if (!isMyTurn || gameState.hasRolled || isRolling) return; setIsRolling(true); setTimeout(async () => { const u = rollLudoDice(gameState, currentPlayerId); setIsRolling(false); await onUpdateState(u); }, 250); };
   const handleMove = async (pid: string, idx: number) => { if (pid !== currentPlayerId || !movable.includes(idx)) return; await onUpdateState(moveLudoToken(gameState, currentPlayerId, idx)); };
   const handleFs = async () => { const el = containerRef.current; if (!el) return; try { if (!document.fullscreenElement) { await el.requestFullscreen(); if (screen.orientation && 'lock' in screen.orientation) await (screen.orientation as unknown as { lock: (m: string) => Promise<void> }).lock('landscape'); } else await document.exitFullscreen(); } catch {} };
   if (gameState.status === 'finished') { const w = gameState.winnerId ? gameState.players[gameState.winnerId] : null; return (<div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-8 text-center max-w-md mx-auto shadow-2xl"><Trophy className="w-16 h-16 text-amber-400 mx-auto mb-3 animate-bounce" /><h2 className="text-2xl font-black text-white mb-1">Loja Përfundoi!</h2><p className="text-amber-300 font-bold text-lg mb-6">👑 Fituesi: {w?.nickname || 'Lojtari'} (+100 pikë)</p>{isHost && onRestartGame && <button onClick={onRestartGame} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition cursor-pointer"><RotateCcw className="w-5 h-5" /> Luaj Përsëri</button>}</div>); }
