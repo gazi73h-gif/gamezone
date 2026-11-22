@@ -127,7 +127,7 @@ export default function RoomLobbyPage() {
 
     if (room.game_type === 'yamb') {
       const initialSheets: Record<string, ReturnType<typeof createEmptySheet>> = {};
-      players.forEach((p) => {
+      const yPlayers = players.length >= 2 ? players : Array.of(players.at(0)!, { player_id: 'BOT_YAMB', nickname: '🤖 Bot Yamb' } as Player); yPlayers.forEach((p) => {
         initialSheets[p.player_id] = createEmptySheet();
       });
 

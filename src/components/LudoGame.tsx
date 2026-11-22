@@ -53,6 +53,7 @@ export default function LudoGame({ gameState, currentPlayerId, isHost, onUpdateS
   const containerRef = useRef<HTMLDivElement | null>(null);
   const winRecordedRef = useRef(false);
   const [isRolling, setIsRolling] = useState(false);
+  useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== 'BOT_LUDO') return; const t = setTimeout(async () => { if (!gameState.hasRolled) { await onUpdateState(rollLudoDice(gameState, 'BOT_LUDO')); } else { const idx = gameState.validPieceIndices?.at(0); if (idx !== undefined) await onUpdateState(moveLudoPiece(gameState, 'BOT_LUDO', idx)); } }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
   const currentPlayer = gameState.players[gameState.currentTurn];
   const me = gameState.players[currentPlayerId];

@@ -1,4 +1,4 @@
-﻿export type LudoColor = 'red' | 'blue' | 'yellow' | 'green';
+export type LudoColor = 'red' | 'blue' | 'yellow' | 'green';
 
 export interface LudoPlayer {
   id: string;

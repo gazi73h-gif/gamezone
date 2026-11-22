@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { recordWin } from '@/lib/supabase';
@@ -108,6 +108,7 @@ export default function UnoGame({
 
   const me = gameState.players[currentPlayerId];
   const activePlayerId = gameState.playerOrder.at(gameState.currentTurnIndex) || '';
+  useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== 'BOT_UNO') return; const h = gameState.hands['BOT_UNO'] || []; const t = setTimeout(async () => { const valid = h.find((x) => canPlayUnoCard(x, gameState.topCard, gameState.activeColor)); if (valid) await onUpdateState(playUnoCard(gameState, 'BOT_UNO', valid.id, 'red')); else await onUpdateState(drawUnoCard(gameState, 'BOT_UNO')); }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
   const isMyTurn = activePlayerId === currentPlayerId && gameState.status === 'playing';
   const activePlayerName = gameState.players[activePlayerId]?.nickname || '...';
   const topCard = gameState.discardPile.at(gameState.discardPile.length - 1)!;
