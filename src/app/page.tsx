@@ -23,8 +23,8 @@ const GAMES: GameInfo[] = [
   {
     id: 'yamb',
     title: 'Yamb (Jamb)',
-    subtitle: 'Lojë me 5 ose 6 zara dhe tabelë pikësh',
-    players: '1 - 4 Lojtarë',
+    subtitle: 'LojÃ« me 5 ose 6 zara dhe tabelÃ« pikÃ«sh',
+    players: '1 - 4 LojtarÃ«',
     icon: <Dices className="w-8 h-8" />,
     color: 'from-amber-500 to-orange-600',
     badge: 'E re'
@@ -33,7 +33,7 @@ const GAMES: GameInfo[] = [
     id: 'pishpirik',
     title: 'Pishpirik',
     subtitle: 'Loja tradicionale shqiptare me letra',
-    players: '2 ose 4 Lojtarë',
+    players: '2 ose 4 LojtarÃ«',
     icon: <Spade className="w-8 h-8" />,
     color: 'from-emerald-500 to-teal-700',
     badge: 'Popullore'
@@ -41,8 +41,8 @@ const GAMES: GameInfo[] = [
   {
     id: 'shah',
     title: 'Shah (Chess)',
-    subtitle: 'Lojë klasike 1v1 e strategjisë 3D ose kundër AI',
-    players: '1 - 2 Lojtarë',
+    subtitle: 'LojÃ« klasike 1v1 e strategjisÃ« 3D ose kundÃ«r AI',
+    players: '1 - 2 LojtarÃ«',
     icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8"><path d="M19 22H5v-2h14v2M17.16 8.26A4.96 4.96 0 0 0 15 6.45V4l-2.85 1.9C11.45 5.65 10.74 5.5 10 5.5C6.96 5.5 4.5 7.96 4.5 11c0 1.48.59 2.83 1.54 3.82L4.5 18h15l-1.58-5.53c.48-.68.78-1.5.78-2.4c0-.66-.19-1.27-.54-1.81M10 10a1 1 0 1 1 0-2a1 1 0 0 1 0 2Z"/></svg>,
     color: 'from-amber-500 to-amber-700',
   },
@@ -50,15 +50,15 @@ const GAMES: GameInfo[] = [
     id: 'uno',
     title: 'UNO Shqip',
     subtitle: 'Letra me ngjyra dhe karta speciale',
-    players: '2 - 6 Lojtarë',
+    players: '2 - 6 LojtarÃ«',
     icon: <Layers className="w-8 h-8" />,
     color: 'from-red-500 to-red-700',
   },
   {
     id: 'ludo',
-    title: 'Ludo (Mos u zemëro)',
-    subtitle: 'Gara klasike me 4 figura drejt shtëpisë',
-    players: '2 - 4 Lojtarë',
+    title: 'Ludo (Mos u zemÃ«ro)',
+    subtitle: 'Gara klasike me 4 figura drejt shtÃ«pisÃ«',
+    players: '2 - 4 LojtarÃ«',
     icon: <Compass className="w-8 h-8" />,
     color: 'from-blue-500 to-indigo-600',
   },
@@ -66,7 +66,7 @@ const GAMES: GameInfo[] = [
     id: 'rummy',
     title: 'Rummy / Jol',
     subtitle: '106 letra + Xhola, hapja e serive',
-    players: '2 - 4 Lojtarë',
+    players: '2 - 4 LojtarÃ«',
     icon: <LayoutGrid className="w-8 h-8" />,
     color: 'from-purple-500 to-violet-700',
   },
@@ -165,7 +165,7 @@ export default function HomePage() {
 
   const handleCreateRoom = async (gameId: string) => {
     if (!nickname.trim()) {
-      setErrorMsg('Ju lutem shkruani një nofkë (emër) përpara se të filloni!');
+      setErrorMsg('Ju lutem shkruani njÃ« nofkÃ« (emÃ«r) pÃ«rpara se tÃ« filloni!');
       return;
     }
     setErrorMsg('');
@@ -185,7 +185,7 @@ export default function HomePage() {
       router.push(`/room/${code}`);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Gabim gjatë krijimit të dhomës. Kontrolloni lidhjen me Supabase.');
+      setErrorMsg('Gabim gjatÃ« krijimit tÃ« dhomÃ«s. Kontrolloni lidhjen me Supabase.');
     } finally {
       setLoading(false);
     }
@@ -193,11 +193,11 @@ export default function HomePage() {
 
    const joinRoomByCode = async (targetCode: string) => {
     if (!nickname.trim()) {
-      setErrorMsg('Ju lutem shkruani një nofkë përpara se të hyni në dhomë!');
+      setErrorMsg('Ju lutem shkruani njÃ« nofkÃ« pÃ«rpara se tÃ« hyni nÃ« dhomÃ«!');
       return;
     }
     if (targetCode.length !== 4) {
-      setErrorMsg('Kodi i dhomës duhet të ketë saktësisht 4 shifra.');
+      setErrorMsg('Kodi i dhomÃ«s duhet tÃ« ketÃ« saktÃ«sisht 4 shifra.');
       return;
     }
     setErrorMsg('');
@@ -209,7 +209,7 @@ export default function HomePage() {
         .eq('code', targetCode)
         .single();
       if (fetchError || !room) {
-        setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.');
+        setErrorMsg('Kjo dhomÃ« nuk ekziston ose ka pÃ«rfunduar.');
         setLoading(false);
         return;
       }
@@ -235,7 +235,7 @@ export default function HomePage() {
       router.push(`/room/${targetCode}`);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Gabim gjatë hyrjes në dhomë.');
+      setErrorMsg('Gabim gjatÃ« hyrjes nÃ« dhomÃ«.');
     } finally {
       setLoading(false);
     }
@@ -257,7 +257,7 @@ export default function HomePage() {
             <h1 className="text-2xl font-extrabold tracking-tight text-white">
               Game<span className="text-amber-400">Zone</span>
             </h1>
-            <p className="text-xs text-slate-400">Lojëra tavoline & letra në kohë reale</p>
+            <p className="text-xs text-slate-400">LojÃ«ra tavoline & letra nÃ« kohÃ« reale</p>
           </div>
         </div>
 
@@ -283,7 +283,7 @@ export default function HomePage() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <label className="block text-sm font-medium text-slate-300 mb-2">
-            1. Shkruaj Nofkën tënde (Emrin në lojë)
+            1. Shkruaj NofkÃ«n tÃ«nde (Emrin nÃ« lojÃ«)
           </label>
           <input
             type="text"
@@ -294,13 +294,13 @@ export default function HomePage() {
             className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none transition"
           />
           <p className="text-xs text-slate-400 mt-2">
-            Nuk kërkohet regjistrim me email. Emri ruhet automatikisht në pajisjen tënde.
+            Nuk kÃ«rkohet regjistrim me email. Emri ruhet automatikisht nÃ« pajisjen tÃ«nde.
           </p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <label className="block text-sm font-medium text-slate-300 mb-2">
-            2. Ke një kod dhome nga shokët?
+            2. Ke njÃ« kod dhome nga shokÃ«t?
           </label>
           <form onSubmit={handleJoinRoom} className="flex gap-3">
             <input
@@ -321,7 +321,7 @@ export default function HomePage() {
             </button>
           </form>
           <p className="text-xs text-slate-400 mt-2">
-            Ose zgjidh njërën nga lojërat më poshtë për të hapur një tavolinë të re.
+            Ose zgjidh njÃ«rÃ«n nga lojÃ«rat mÃ« poshtÃ« pÃ«r tÃ« hapur njÃ« tavolinÃ« tÃ« re.
           </p>
         </div>
       </section>
@@ -344,7 +344,7 @@ export default function HomePage() {
 
         {openRooms.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-            Aktualisht nuk ka dhoma në pritje. Krijo një lojë më poshtë dhe lojtarët e tjerë do ta shohin menjëherë këtu!
+            Aktualisht nuk ka dhoma nÃ« pritje. Krijo njÃ« lojÃ« mÃ« poshtÃ« dhe lojtarÃ«t e tjerÃ« do ta shohin menjÃ«herÃ« kÃ«tu!
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -360,8 +360,8 @@ export default function HomePage() {
                       {gameInfo?.title || r.game_type}
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5">
-                      Host: <span className="text-amber-400 font-medium">{r.hostName}</span> •{' '}
-                      <span className="text-emerald-400">{r.playerCount} lojtarë</span>
+                      Host: <span className="text-amber-400 font-medium">{r.hostName}</span> â€¢{' '}
+                      <span className="text-emerald-400">{r.playerCount} lojtarÃ«</span>
                     </div>
                   </div>
 
@@ -383,7 +383,7 @@ export default function HomePage() {
       <section>
         <div className="flex items-center gap-2 mb-5">
           <Sparkles className="w-5 h-5 text-amber-400" />
-          <h2 className="text-xl font-bold text-white">Zgjidh Lojën & Hap Tavolinë</h2>
+          <h2 className="text-xl font-bold text-white">Zgjidh LojÃ«n & Hap TavolinÃ«</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -419,7 +419,7 @@ export default function HomePage() {
                   className="flex items-center gap-1.5 bg-slate-800 hover:bg-amber-500 text-white hover:text-slate-950 text-sm font-semibold px-4 py-2 rounded-xl transition cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  Krijo Dhomë
+                  Krijo DhomÃ«
                 </button>
               </div>
             </div>
