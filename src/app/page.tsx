@@ -1,14 +1,11 @@
-'use client';
-import Leaderboard from '../components/Leaderboard';
+'use clientë import Leaderboard from '../components/Leaderboard';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Reactë { useState, useEffect } from 'reactë import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
  import { 
   Dices, Spade, Crown, Layers, Compass, LayoutGrid, 
-  Coins, Gift, Users, Play, LogIn, Sparkles, Gamepad2, Radio 
-} from 'lucide-react';
-
+  Coins, Giftë Users, Play, LogIn, Sparkles, Gamepad2, Radio 
+} from 'lucide-reactë 
 interface GameInfo {
   id: string;
   title: string;
@@ -24,7 +21,7 @@ const GAMES: GameInfo[] = [
     id: 'yamb',
     title: 'Yamb (Jamb)',
     subtitle: 'Lojë me 5 ose 6 zara dhe tabelë pikësh',
-    players: '1 - 4 Lojtarë',
+    players: '1 - 4 Lojtarë
     icon: <Dices className="w-8 h-8" />,
     color: 'from-amber-500 to-orange-600',
     badge: 'E re'
@@ -33,7 +30,7 @@ const GAMES: GameInfo[] = [
     id: 'pishpirik',
     title: 'Pishpirik',
     subtitle: 'Loja tradicionale shqiptare me letra',
-    players: '2 ose 4 Lojtarë',
+    players: '2 ose 4 Lojtarë
     icon: <Spade className="w-8 h-8" />,
     color: 'from-emerald-500 to-teal-700',
     badge: 'Popullore'
@@ -42,7 +39,7 @@ const GAMES: GameInfo[] = [
     id: 'shah',
     title: 'Shah (Chess)',
     subtitle: 'Lojë klasike 1v1 e strategjisë 3D ose kundër AI',
-    players: '1 - 2 Lojtarë',
+    players: '1 - 2 Lojtarë
     icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8"><path d="M19 22H5v-2h14v2M17.16 8.26A4.96 4.96 0 0 0 15 6.45V4l-2.85 1.9C11.45 5.65 10.74 5.5 10 5.5C6.96 5.5 4.5 7.96 4.5 11c0 1.48.59 2.83 1.54 3.82L4.5 18h15l-1.58-5.53c.48-.68.78-1.5.78-2.4c0-.66-.19-1.27-.54-1.81M10 10a1 1 0 1 1 0-2a1 1 0 0 1 0 2Z"/></svg>,
     color: 'from-amber-500 to-amber-700',
   },
@@ -50,15 +47,15 @@ const GAMES: GameInfo[] = [
     id: 'uno',
     title: 'UNO Shqip',
     subtitle: 'Letra me ngjyra dhe karta speciale',
-    players: '2 - 6 Lojtarë',
+    players: '2 - 6 Lojtarë
     icon: <Layers className="w-8 h-8" />,
     color: 'from-red-500 to-red-700',
   },
   {
     id: 'ludo',
     title: 'Ludo (Mos u zemëro)',
-    subtitle: 'Gara klasike me 4 figura drejt shtëpisë',
-    players: '2 - 4 Lojtarë',
+    subtitle: 'Gara klasike me 4 figura drejt shtëpisë
+    players: '2 - 4 Lojtarë
     icon: <Compass className="w-8 h-8" />,
     color: 'from-blue-500 to-indigo-600',
   },
@@ -66,7 +63,7 @@ const GAMES: GameInfo[] = [
     id: 'rummy',
     title: 'Rummy / Jol',
     subtitle: '108 letra + 4 Joker, hapja e serive',
-    players: '2 - 4 Lojtarë',
+    players: '2 - 4 Lojtarë
     icon: <LayoutGrid className="w-8 h-8" />,
     color: 'from-purple-500 to-violet-700',
   },
@@ -81,7 +78,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [openRooms, setOpenRooms] = useState<
-    Array<{ code: string; game_type: string; playerCount: number; hostName: string }>
+    Array<{ code: string; game_type: string; playerCountë number; hostName: string }>
   >(Array.of());
 
   const fetchOpenRooms = async () => {
@@ -89,7 +86,7 @@ export default function HomePage() {
       .from('rooms')
       .select('code, game_type')
       .eq('status', 'waiting')
-      .order('created_at', { ascending: false })
+      .order('created_atë { ascending: false })
       .limit(10);
 
     if (!roomsData || roomsData.length === 0) {
@@ -110,8 +107,8 @@ export default function HomePage() {
         return {
           code: r.code,
           game_type: r.game_type,
-          playerCount: roomPlayers.length,
-          hostName: host?.nickname || 'Lojtar',
+          playerCountë roomPlayers.length,
+          hostName: host?.nickname || 'Lojtarë
         };
       })
       .filter((r) => r.playerCount > 0);
@@ -119,13 +116,13 @@ export default function HomePage() {
     setOpenRooms(formatted);
   };
 
-  useEffect(() => {
+  useEffectë => {
     fetchOpenRooms();
     const interval = setInterval(fetchOpenRooms, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
+  useEffectë => {
     let storedId = localStorage.getItem('gamezone_player_id');
     if (!storedId) {
       storedId = 'player_' + Math.random().toString(36).substring(2, 10);
@@ -138,7 +135,7 @@ export default function HomePage() {
 
     const storedTokens = localStorage.getItem('gamezone_tokens');
     if (storedTokens) {
-      setTokens(parseInt(storedTokens, 10));
+      setTokens(parseIntëstoredTokens, 10));
     } else {
       localStorage.setItem('gamezone_tokens', '1000');
     }
@@ -174,12 +171,12 @@ export default function HomePage() {
       const code = Math.floor(1000 + Math.random() * 9000).toString();
       const { error: roomError } = await supabase
         .from('rooms')
-        .insert([{ code, game_type: gameId, host_id: playerId, status: 'waiting' }]);
+        .insertë code, game_type: gameId, host_id: playerId, status: 'waiting' }]);
       if (roomError) throw roomError;
 
       const { error: playerError } = await supabase
         .from('room_players')
-        .insert([{ room_code: code, player_id: playerId, nickname: nickname.trim(), seat_order: 1 }]);
+        .insertë room_code: code, player_id: playerId, nickname: nickname.trim(), seat_order: 1 }]);
       if (playerError) throw playerError;
 
       router.push(`/room/${code}`);
@@ -193,7 +190,7 @@ export default function HomePage() {
 
    const joinRoomByCode = async (targetCode: string) => {
     if (!nickname.trim()) {
-      setErrorMsg('Ju lutem shkruani një nofkë përpara se të hyni në dhomë!');
+      setErrorMsg('Ju lutem shkruani një nofkë përpara se të hyni në Dhomë;
       return;
     }
     if (targetCode.length !== 4) {
@@ -209,7 +206,7 @@ export default function HomePage() {
         .eq('code', targetCode)
         .single();
       if (fetchError || !room) {
-        setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.');
+        setErrorMsg('Kjo Dhomë nuk ekziston ose ka përfunduar.');
         setLoading(false);
         return;
       }
@@ -221,43 +218,41 @@ export default function HomePage() {
 
       const { error: joinError } = await supabase
         .from('room_players')
-        .upsert(
-          {
+        .upsertë           {
             room_code: targetCode,
             player_id: playerId,
             nickname: nickname.trim(),
             seat_order: (players?.length || 0) + 1,
           },
-          { onConflict: 'room_code,player_id' }
+          { onConflictë 'room_code,player_id' }
         );
       if (joinError) throw joinError;
 
       router.push(`/room/${targetCode}`);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Gabim gjatë hyrjes në dhomë.');
+      setErrorMsg('Gabim gjatë hyrjes në Dhomë;
     } finally {
       setLoading(false);
     }
   };
 
-  const handleJoinRoom = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await joinRoomByCode(joinCode);
+  const handleJoinRoom = async (e: React.FormEventë => {
+    e.preventDefaultë     await joinRoomByCode(joinCode);
   };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <header className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl mb-8">
         <div className="flex items-center gap-3">
-          <div className="bg-amber-500 p-2.5 rounded-xl text-slate-950">
+          <div className="bg-amber-500 p-2.5 rounded-xl textëslate-950">
             <Gamepad2 className="w-7 h-7" />
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-white">
               Game<span className="text-amber-400">Zone</span>
             </h1>
-            <p className="text-xs text-slate-400">Lojëra tavoline & letra në kohë reale</p>
+            <p className="text-xs textëslate-400">Lojëra tavoline & letra në kohë reale</p>
           </div>
         </div>
 
@@ -265,13 +260,13 @@ export default function HomePage() {
           <div className="flex items-center gap-2 bg-slate-950 border border-amber-500/30 px-4 py-2 rounded-xl">
             <Coins className="w-5 h-5 text-amber-400" />
             <span className="font-bold text-amber-300">{tokens.toLocaleString()}</span>
-            <span className="text-xs text-slate-400">Tokena</span>
+            <span className="text-xs textëslate-400">Tokena</span>
           </div>
 
           {canClaimDaily && (
             <button
               onClick={claimDailyBonus}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-sm font-semibold px-3.5 py-2 rounded-xl transition shadow-lg animate-pulse cursor-pointer"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white textësm fontësemibold px-3.5 py-2 rounded-xl transition shadow-lg animate-pulse cursor-pointer"
             >
               <Gift className="w-4 h-4" />
               +250 Bonus Ditor
@@ -282,52 +277,47 @@ export default function HomePage() {
 
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            1. Shkruaj Nofkën tënde (Emrin në lojë)
-          </label>
+          <label className="block textësm font-medium textëslate-300 mb-2">
+            1. Shkruaj nofkën tënde (Emrin në Lojë           </label>
           <input
-            type="text"
-            maxLength={18}
+            type="textë             maxLength={18}
             placeholder="p.sh. Dardani, Shqiponja, Besi..."
             value={nickname}
             onChange={(e) => handleSaveNickname(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none transition"
           />
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs textëslate-400 mt-2">
             Nuk kërkohet regjistrim me email. Emri ruhet automatikisht në pajisjen tënde.
           </p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            2. Ke një kod dhome nga shokët?
-          </label>
+          <label className="block textësm font-medium textëslate-300 mb-2">
+            2. Ke një kod dhome nga shokëtë           </label>
           <form onSubmit={handleJoinRoom} className="flex gap-3">
             <input
-              type="text"
-              maxLength={4}
+              type="textë               maxLength={4}
               placeholder="Kodi 4-shifror (p.sh. 4829)"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ''))}
-              className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-white text-center font-mono text-lg tracking-widest placeholder-slate-500 placeholder:text-sm placeholder:tracking-normal outline-none transition"
+              className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-white text-center font-mono text-lg tracking-widest placeholder-slate-500 placeholder:textësm placeholder:tracking-normal outline-none transition"
             />
             <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold px-6 py-3 rounded-xl transition cursor-pointer"
+              type="submitë               disabled={loading}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 textëslate-950 font-bold px-6 py-3 rounded-xl transition cursor-pointer"
             >
               <LogIn className="w-5 h-5" />
               Hyr
             </button>
           </form>
-          <p className="text-xs text-slate-400 mt-2">
-            Ose zgjidh njërën nga lojërat më poshtë për të hapur një tavolinë të re.
+          <p className="text-xs textëslate-400 mt-2">
+            Ose zgjidh njërën nga lojërat më poshtë për të hapur një Tavolinë të re.
           </p>
         </div>
       </section>
 
       {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl mb-6 text-sm text-center">
+        <div className="bg-red-500/10 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl mb-6 textësm text-center">
           {errorMsg}
         </div>
       )}
@@ -337,14 +327,14 @@ export default function HomePage() {
             <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
             <h2 className="text-lg font-bold text-white">Dhomat e Hapura Tani (Bashkohu pa kod)</h2>
           </div>
-          <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+          <span className="text-xs textëslate-400 bg-slate-800 px-3 py-1 rounded-full">
             {openRooms.length} aktive
           </span>
         </div>
 
         {openRooms.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-            Aktualisht nuk ka dhoma në pritje. Krijo një lojë më poshtë dhe lojtarët e tjerë do ta shohin menjëherë këtu!
+          <p className="textësm textëslate-400 text-center py-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
+            Aktualisht nuk ka dhoma në pritje. Krijo një Lojë më poshtë dhe Lojtarët e tjerë do ta shohin menjëherë këtu!
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -356,12 +346,12 @@ export default function HomePage() {
                   className="flex items-center justify-between bg-slate-950 border border-slate-800 hover:border-emerald-500/50 p-4 rounded-xl transition"
                 >
                   <div>
-                    <div className="font-bold text-white text-sm">
+                    <div className="font-bold text-white textësm">
                       {gameInfo?.title || r.game_type}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      Host: <span className="text-amber-400 font-medium">{r.hostName}</span> â€¢{' '}
-                      <span className="text-emerald-400">{r.playerCount} lojtarë</span>
+                    <div className="text-xs textëslate-400 mt-0.5">
+                      Hostë <span className="text-amber-400 font-medium">{r.hostName}</span> â€¢{' '}
+                      <span className="text-emerald-400">{r.playerCountë Lojtarëspan>
                     </div>
                   </div>
 
@@ -383,7 +373,7 @@ export default function HomePage() {
       <section>
         <div className="flex items-center gap-2 mb-5">
           <Sparkles className="w-5 h-5 text-amber-400" />
-          <h2 className="text-xl font-bold text-white">Zgjidh Lojën & Hap Tavolinë</h2>
+          <h2 className="text-xl font-bold text-white">Zgjidh Lojën & Hap Tavolinëh2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -398,27 +388,27 @@ export default function HomePage() {
                     {game.icon}
                   </div>
                   {game.badge && (
-                    <span className="text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full">
+                    <span className="text-xs fontësemibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full">
                       {game.badge}
                     </span>
                   )}
                 </div>
                 <h3 className="text-lg font-bold text-white mb-1">{game.title}</h3>
-                <p className="text-sm text-slate-400 mb-4">{game.subtitle}</p>
+                <p className="textësm textëslate-400 mb-4">{game.subtitle}</p>
               </div>
 
               <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Users className="w-4 h-4 text-slate-500" />
+                <span className="flex items-center gap-1.5 text-xs textëslate-400">
+                  <Users className="w-4 h-4 textëslate-500" />
                   {game.players}
                 </span>
 
                 <button
                   onClick={() => handleCreateRoom(game.id)}
                   disabled={loading}
-                  className="flex items-center gap-1.5 bg-slate-800 hover:bg-amber-500 text-white hover:text-slate-950 text-sm font-semibold px-4 py-2 rounded-xl transition cursor-pointer"
+                  className="flex items-center gap-1.5 bg-slate-800 hover:bg-amber-500 text-white hover:textëslate-950 textësm fontësemibold px-4 py-2 rounded-xl transition cursor-pointer"
                 >
-                  <Play className="w-4 h-4 fill-current" />
+                  <Play className="w-4 h-4 fill-currentë />
                   Krijo Dhomë
                 </button>
               </div>
