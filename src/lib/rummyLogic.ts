@@ -5,6 +5,9 @@ export interface RummyPlayer { id: string; nickname: string; hand: RummyTile[]; 
 export interface RummyGameState {
   deck: RummyTile[];
   discardPile: RummyTile[];
+  indicatorTile?: RummyTile;
+  jokerNumber?: number;
+  jokerColor?: TileColor;
   melds: RummyMeld[];
   players: Record<string, RummyPlayer>;
   playerOrder: string[];
@@ -83,6 +86,10 @@ export function validateMeld(tiles: RummyTile[]): { valid: boolean; type?: 'grou
 export function initRummyGame(players: { id: string; nickname: string }[]): RummyGameState {
   const deck = createRummyDeck();
   const list = players.length >= 2 ? players.slice(0, 4) : Array.of(players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }, { id: 'BOT_RUMMY', nickname: '🤖 Bot Rummy' });
+  const indicator = deck.pop()!;
+  const jokerNumber = indicator.isJoker ? 1 : indicator.number === 13 ? 1 : indicator.number + 1;
+  const jokerColor = indicator.color;
+  deck.forEach((t) => { if (!t.isJoker && t.number === jokerNumber && t.color === jokerColor) t.isJoker = true; });
   const playersMap: Record<string, RummyPlayer> = {};
   const order: string[] = Array.of();
   list.forEach((pl, idx) => {
@@ -91,7 +98,7 @@ export function initRummyGame(players: { id: string; nickname: string }[]): Rumm
   });
   return {
     deck,
-    discardPile: Array.of(),
+    discardPile: Array.of(), indicatorTile: indicator, jokerNumber, jokerColor,
     melds: Array.of(),
     players: playersMap,
     playerOrder: order,

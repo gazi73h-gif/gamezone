@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BOT_RUMMY_ID, RummyGameState, RummyTile, TileColor, addToRummyMeld, discardRummyTile, drawRummyTile, playRummyMeld, runBotRummyTurn } from '@/lib/rummyLogic';
 import { recordWin } from '@/lib/supabase';
-import { Trophy, RotateCcw, Crown, Layers, ArrowDownToLine, Sparkles, ArrowUpDown, PlusCircle } from 'lucide-react';
+import { Trophy, RotateCcw, Crown, Layers, ArrowDownToLine, Sparkles, ArrowUpDown, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface RummyGameProps { gameState: RummyGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: RummyGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
 
@@ -26,14 +26,14 @@ function playTileSound(kind: 'draw' | 'meld' | 'win') {
   } catch {}
 }
 
-function Tile3D({ tile, selected, onClick, small }: { tile: RummyTile; selected?: boolean; onClick?: () => void; small?: boolean }) {
+function Tile3D({ tile, selected, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
   const c = TILE_COLOR[tile.color];
   return (
-    <button type="button" onClick={onClick} className={`relative select-none rounded-xl bg-gradient-to-b from-[#fffdf7] via-[#f7edd8] to-[#e2cfa8] border border-amber-200 flex flex-col items-center justify-between transition-all ${small ? 'w-8 h-11 sm:w-9 sm:h-12 p-1 shadow-[0_3px_0_#9c7a49,0_5px_8px_rgba(0,0,0,0.5)]' : 'w-11 h-16 sm:w-12 sm:h-[68px] p-1.5 shadow-[0_5px_0_#9c7a49,0_8px_14px_rgba(0,0,0,0.65)] cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-[0_8px_0_#d97706,0_14px_20px_rgba(0,0,0,0.8)] z-20' : ''}`}>
-      {tile.isJoker ? (
+    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl bg-gradient-to-b from-[#fffdf7] via-[#f7edd8] to-[#e2cfa8] border border-amber-200 flex flex-col items-center justify-between transition-all ${small ? 'w-8 h-11 sm:w-9 sm:h-12 p-1 shadow-[0_3px_0_#9c7a49,0_5px_8px_rgba(0,0,0,0.5)]' : 'w-11 h-16 sm:w-12 sm:h-[68px] p-1.5 shadow-[0_5px_0_#9c7a49,0_8px_14px_rgba(0,0,0,0.65)] cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-[0_8px_0_#d97706,0_14px_20px_rgba(0,0,0,0.8)] z-20' : ''}`}>
+            {tile.isJoker ? (
         <div className="flex flex-col items-center justify-center h-full text-amber-500">
           <Crown className={small ? 'w-4 h-4 fill-amber-400' : 'w-6 h-6 fill-amber-400'} />
-          <span className="text-[9px] font-black tracking-tighter text-amber-700">JOL</span>
+          <span className="text-[9px] font-black tracking-tighter text-amber-700">{tile.number > 0 ? `${tile.number} JOL` : 'JOL'}</span>
         </div>
       ) : (
         <>
@@ -79,6 +79,30 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
     return 0;
   }) : Array.of();
 
+  const [dragId, setDragId] = useState<string | null>(null);
+  const ensureOrder = (tiles: RummyTile[]) => {
+    const ids = tiles.map((t) => t.id);
+    const base = localOrder.filter((id) => ids.includes(id));
+    for (const id of ids) if (!base.includes(id)) base.push(id);
+    return base;
+  };
+  const moveTileStep = (dir: -1 | 1) => {
+    if (!me || selectedIds.length !== 1) return;
+    const ord = ensureOrder(me.hand);
+    const idx = ord.indexOf(selectedIds.at(0)!);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= ord.length) return;
+    const tmp = ord[idx]; ord[idx] = ord[target]; ord[target] = tmp;
+    setLocalOrder(ord);
+  };
+  const handleDropTile = (targetId: string) => {
+    if (!me || !dragId || dragId === targetId) return;
+    const ord = ensureOrder(me.hand);
+    const fromIdx = ord.indexOf(dragId); const toIdx = ord.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ord.splice(fromIdx, 1); ord.splice(toIdx, 0, dragId);
+    setLocalOrder(ord); setDragId(null);
+  };
   const toggleSelect = (id: string) => { setErrorMsg(''); setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.concat(id))); };
   const sortByRun = () => { if (!me) return; const cOrd: Record<TileColor, number> = { red: 1, blue: 2, black: 3, orange: 4 }; setLocalOrder(me.hand.slice().sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : cOrd[a.color] - cOrd[b.color] || a.number - b.number)).map((t) => t.id)); };
   const sortByGroup = () => { if (!me) return; setLocalOrder(me.hand.slice().sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : a.number - b.number)).map((t) => t.id)); };
@@ -115,7 +139,20 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
       </div>
 
       <div className="bg-gradient-to-br from-[#14532d] via-[#166534] to-[#0f3d21] p-4 sm:p-6 rounded-3xl border-4 border-[#5c361c] shadow-[inset_0_4px_20px_rgba(0,0,0,0.6),0_15px_35px_rgba(0,0,0,0.8)] flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-center gap-6 py-2">
+        <div className="flex flex-wrap items-center justify-center gap-5 py-2">
+          {gameState.indicatorTile && (
+            <div className="flex items-center gap-3 bg-black/30 px-3.5 py-2 rounded-2xl border border-amber-400/30">
+              <div className="flex flex-col items-center gap-1">
+                <Tile3D tile={{ ...gameState.indicatorTile, isJoker: false }} small />
+                <span className="text-[10px] font-bold text-emerald-100/75">Treguesi</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Tile3D tile={{ id: 'joker_preview', number: gameState.jokerNumber || 1, color: gameState.jokerColor || 'red', isJoker: true }} small />
+                <span className="text-[10px] font-black text-amber-300">Xholi (JOL)</span>
+              </div>
+            </div>
+          )}
+
           <button type="button" onClick={() => handleDraw('deck')} disabled={!isMyTurn || gameState.hasDrawn} className={`flex flex-col items-center gap-1.5 px-5 py-3 rounded-2xl bg-gradient-to-b from-[#fffdf7] to-[#e2cfa8] border-2 border-amber-300 shadow-[0_6px_0_#9c7a49,0_12px_20px_rgba(0,0,0,0.6)] transition ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer hover:scale-105' : 'opacity-80 cursor-not-allowed'}`}>
             <Layers className="w-6 h-6 text-amber-800" />
             <span className="text-xs font-black text-slate-900">Pako ({gameState.deck.length})</span>
@@ -157,7 +194,7 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <button type="button" onClick={sortByRun} className="inline-flex items-center gap-1 bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/30 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> 1-2-3</button>
-              <button type="button" onClick={sortByGroup} className="inline-flex items-center gap-1 bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/30 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> 7-7-7</button>
+              <button type="button" onClick={sortByGroup} className="inline-flex items-center gap-1 bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/30 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> 7-7-7</button><button type="button" onClick={() => moveTileStep(-1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-amber-950/80 hover:bg-amber-900 disabled:opacity-35 text-amber-200 border border-amber-500/30 rounded-xl cursor-pointer"><ChevronLeft className="w-4 h-4" /></button><button type="button" onClick={() => moveTileStep(1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-amber-950/80 hover:bg-amber-900 disabled:opacity-35 text-amber-200 border border-amber-500/30 rounded-xl cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={handleMeld} disabled={!isMyTurn || selectedIds.length < 3} className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow cursor-pointer"><Sparkles className="w-4 h-4" /> Hap Kombinimin</button>
@@ -166,7 +203,7 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
           </div>
 
           <div className="bg-black/30 p-3 rounded-2xl border-t-4 border-b-4 border-[#361c0c] shadow-inner flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 min-h-[84px]">
-            {hand.map((tile) => (<Tile3D key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} onClick={() => toggleSelect(tile.id)} />))}
+            {hand.map((tile) => (<Tile3D key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} onClick={() => toggleSelect(tile.id)} draggable onDragStart={() => setDragId(tile.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropTile(tile.id)} />))}
           </div>
         </div>
       )}
