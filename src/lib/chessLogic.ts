@@ -1,4 +1,11 @@
-﻿
+export type PieceColor = 'w' | 'b';
+export type PieceType = 'p' | 'r' | 'n' | 'b' | 'q' | 'k';
+export interface ChessPiece { color: PieceColor; type: PieceType; moved?: boolean; }
+export type Board = (ChessPiece | null)[][];
+export interface ChessGameState { board: Board; turn: PieceColor; whiteId: string; whiteName: string; blackId: string; blackName: string; status: 'playing' | 'finished'; winnerId: string | null; winnerName: string | null; inCheck: PieceColor | null; lastMove: { from: [number, number]; to: [number, number] } | null; capturedByWhite: ChessPiece[]; capturedByBlack: ChessPiece[]; lastActionText: string; }
+export function createInitialBoard(): Board { const b: Board = Array.from({ length: 8 }, () => Array(8).fill(null)); const back: PieceType[] = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']; for (let c = 0; c < 8; c++) { b[c] = { color: 'b', type: back[c] }; b[c] = { color: 'b', type: 'p' }; b[c] = { color: 'w', type: 'p' }; b[c] = { color: 'w', type: back[c] }; } return b; }
+export function initChessGame(players: { id: string; nickname: string }[]): ChessGameState { const w = players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }; const bl = players.at(1) || players.at(0) || { id: 'p2', nickname: 'Lojtari 2' }; return { board: createInitialBoard(), turn: 'w', whiteId: w.id, whiteName: w.nickname, blackId: bl.id, blackName: bl.nickname, status: 'playing', winnerId: null, winnerName: null, inCheck: null, lastMove: null, capturedByWhite: [], capturedByBlack: [], lastActionText: `Loja filloi! Lëvizin të Bardhat (${w.nickname}).` }; }
+
 function cloneBoard(b: Board): Board { return b.map((r) => r.map((c) => (c ? { ...c } : null))); }
 function inBounds(r: number, c: number) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 
