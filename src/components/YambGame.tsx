@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase, recordWin } from '../lib/supabase';
 import {
   YambGameState, ColumnKey, RowKey, ROWS_ORDER, ROW_LABELS,
@@ -61,9 +61,10 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
   const [selectedViewPlayer, setSelectedViewPlayer] = useState<string>(currentPlayerId);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (gameState.winnerId || !isHost || gameState.currentTurnPlayerId !== 'BOT_YAMB') return; const t = setTimeout(async () => { const d = Array.from({ length: 6 }, () => Math.floor(Math.random() * 6) + 1); const sheet = gameState.sheets['BOT_YAMB']; if (!sheet) return; const cols = ['down', 'up', 'free'] as const; const rows = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes', 'max', 'min', 'straight', 'full', 'poker', 'yamb'] as const; let picked: { col: typeof cols[number]; row: typeof rows[number] } | null = null; for (const c of cols) { for (const r of rows) { if (sheet[c][r] === null) { picked = { col: c, row: r }; break; } } if (picked) break; } if (!picked) return; const val = calculateCellScore(picked.row, d); const nextSheet = { ...sheet, [picked.col]: { ...sheet[picked.col], [picked.row]: val } }; await onUpdateState({ ...gameState, dice: d, rollsLeft: 3, calledRow: null, sheets: { ...gameState.sheets, BOT_YAMB: nextSheet }, currentTurnPlayerId: Object.keys(gameState.sheets).find((id) => id !== 'BOT_YAMB') || 'BOT_YAMB' }); }, 900); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
+  const allPlayers = players.some((p) => p.player_id === 'BOT_YAMB') || !gameState.sheets['BOT_YAMB'] ? players : players.concat({ player_id: 'BOT_YAMB', nickname: '🤖 Bot Yamb' });
+  useEffect(() => { if (gameState.winnerId || allPlayers.at(0)?.player_id !== currentPlayerId || gameState.currentTurnPlayerId !== 'BOT_YAMB') return; const t = setTimeout(async () => { const d = Array.from({ length: 6 }, () => Math.floor(Math.random() * 6) + 1); const sheet = gameState.sheets['BOT_YAMB']; if (!sheet) return; const cols = ['down', 'up', 'free'] as const; const rows = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes', 'max', 'min', 'straight', 'full', 'poker', 'yamb'] as const; let picked: { col: typeof cols[number]; row: typeof rows[number] } | null = null; for (const c of cols) { for (const r of rows) { if (sheet[c][r] === null) { picked = { col: c, row: r }; break; } } if (picked) break; } if (!picked) return; const val = calculateScore(picked.row, d); const nextSheet = { ...sheet, [picked.col]: { ...sheet[picked.col], [picked.row]: val } }; await updateGameState({ ...gameState, dice: d, rollsLeft: 3, calledRow: null, sheets: { ...gameState.sheets, BOT_YAMB: nextSheet }, currentTurnPlayerId: Object.keys(gameState.sheets).find((id) => id !== 'BOT_YAMB') || 'BOT_YAMB' }); }, 900); return () => clearTimeout(t); }, [gameState, currentPlayerId]);
   const isMyTurn = gameState.currentTurnPlayerId === currentPlayerId && !gameState.winnerId;
-  const activePlayer = players.find((p) => p.player_id === gameState.currentTurnPlayerId);
+  const activePlayer = allPlayers.find((p) => p.player_id === gameState.currentTurnPlayerId);
   const viewedSheet = gameState.sheets[selectedViewPlayer] || createEmptySheet();
 
   const updateGameState = async (newState: YambGameState) => {
@@ -160,7 +161,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
     <div className="max-w-5xl mx-auto px-3 py-6">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
-          {players.map((p) => {
+          {allPlayers.map((p) => {
             const total = getGrandTotal(gameState.sheets[p.player_id] || createEmptySheet());
             const active = p.player_id === gameState.currentTurnPlayerId;
             return (
@@ -187,7 +188,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
           {gameState.winnerId ? (
             <span className="flex items-center gap-2 text-amber-400">
               <Trophy className="w-5 h-5" />
-              Fituesi: {players.find((p) => p.player_id === gameState.winnerId)?.nickname}
+              Fituesi: {allPlayers.find((p) => p.player_id === gameState.winnerId)?.nickname}
             </span>
           ) : isMyTurn ? (
             <span className="text-emerald-400">Radha jote! Hidh zarat ose shkruaj pikët.</span>
