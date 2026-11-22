@@ -5,9 +5,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
  import { 
-  Dices, Spade, Palette, Layers, Compass, LayoutGrid, 
+  Dices, Spade, Crown, Layers, Compass, LayoutGrid, 
   Coins, Gift, Users, Play, LogIn, Sparkles, Gamepad2, Radio 
-} from 'lucide-react';
+} , Crown } from 'lucide-react';
 
 interface GameInfo {
   id: string;
@@ -39,12 +39,9 @@ const GAMES: GameInfo[] = [
     badge: 'Popullore'
   },
   {
-    id: 'shah',
-    title: 'Shah (Chess)',
-    subtitle: 'Shah fjalën dhe gjeje në chat',
-    players: '2 - 8 Lojtarë',
-    icon: <Palette className="w-8 h-8" />,
-    color: 'from-pink-500 to-rose-600',
+    $11 - 2 Lojtarë',
+    icon: <Crown className="w-8 h-8" />,
+    color: 'from-amber-500 to-amber-700',
   },
   {
     id: 'uno',
