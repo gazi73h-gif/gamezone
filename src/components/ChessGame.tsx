@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BOT_ID, ChessGameState, ChessPiece, computeBotMove, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
 import { recordWin } from '@/lib/supabase';
-import { Trophy, RotateCcw, Crown, ShieldAlert } from 'lucide-react';
+import { Trophy, RotateCcw, Crown, ShieldAlert, Undo2, History, Sparkles } from 'lucide-react';
 function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -39,6 +39,7 @@ function ChessPiece3D({ piece }: { piece: ChessPiece }) {
 }
 export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdateState, onRestartGame }: ChessGameProps) {
   const [selected, setSelected] = useState<[number, number] | null>(null);
+  const [view3D, setView3D] = useState<boolean>(true);
   const winRecordedRef = useRef(false);
   const isWhite = currentPlayerId === gameState.whiteId;
   const isBlack = currentPlayerId === gameState.blackId && gameState.blackId !== gameState.whiteId;
@@ -74,6 +75,14 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
     else if (gameState.inCheck) playChessSound('check');
     else playChessSound('move');
   }, [gameState.lastMove, gameState.inCheck, gameState.status]);
+  const handleUndo = async () => {
+    if (!gameState.prevBoard || gameState.status !== 'playing') return;
+    setSelected(null);
+    await onUpdateState({ ...gameState, board: gameState.prevBoard, prevBoard: null, turn: gameState.turn === 'w' ? 'b' : 'w', inCheck: null, lastActionText: '↩️ Potezi i fundit u kthye prapa.' });
+  };
+  const handleDifficulty = async (diff: 'easy' | 'medium' | 'hard') => {
+    await onUpdateState({ ...gameState, aiDifficulty: diff });
+  };
   const legalTargets = selected ? getLegalMoves(gameState.board, selected.at(0)!, selected.at(1)!) : [];
   const handleCellClick = async (r: number, c: number) => {
     if (!isMyTurn) return;
@@ -90,66 +99,94 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
   const rows = isBlack ? Array.of(7,6,5,4,3,2,1,0) : Array.of(0,1,2,3,4,5,6,7);
   const cols = isBlack ? Array.of(7,6,5,4,3,2,1,0) : Array.of(0,1,2,3,4,5,6,7);
   const files = Array.of('a','b','c','d','e','f','g','h');
+  const isBotMatch = gameState.blackId === BOT_ID || gameState.whiteId === BOT_ID;
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-3 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 p-3 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl">
-      <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border shadow-lg ${gameState.inCheck ? 'bg-red-950/70 border-red-500 text-red-200' : 'bg-slate-900 border-slate-700 text-slate-200'}`}>
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
-          {gameState.inCheck && <ShieldAlert className="w-5 h-5 text-red-400 animate-bounce shrink-0" />}
-          <span>{gameState.lastActionText}</span>
+    <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-4 bg-gradient-to-br from-[#1b120c] via-[#120c08] to-[#090604] p-3 sm:p-5 rounded-3xl border border-amber-500/30 shadow-[0_25px_70px_rgba(0,0,0,0.95)]">
+      <div className="flex-1 flex flex-col gap-3">
+        <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 rounded-2xl border shadow-lg ${gameState.inCheck ? 'bg-red-950/80 border-red-500 text-red-200' : 'bg-[#23170f]/90 border-amber-500/30 text-amber-100'}`}>
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+            {gameState.inCheck && <ShieldAlert className="w-5 h-5 text-red-400 animate-bounce shrink-0" />}
+            <span>{gameState.lastActionText}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setView3D(!view3D)} className="inline-flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 font-bold text-xs px-2.5 py-1.5 rounded-xl transition cursor-pointer"><Sparkles className="w-3.5 h-3.5" /> {view3D ? '3D' : '2D'}</button>
+            {gameState.prevBoard && gameState.status === 'playing' && (
+              <button onClick={handleUndo} className="inline-flex items-center gap-1 bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/30 font-bold text-xs px-2.5 py-1.5 rounded-xl transition cursor-pointer"><Undo2 className="w-3.5 h-3.5" /> Kthe</button>
+            )}
+            {isHost && onRestartGame && (
+              <button onClick={onRestartGame} className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs px-3 py-1.5 rounded-xl transition cursor-pointer"><RotateCcw className="w-3.5 h-3.5" /> Rinis</button>
+            )}
+          </div>
         </div>
-        {gameState.status === 'finished' && isHost && onRestartGame && (
-          <button onClick={onRestartGame} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer shrink-0"><RotateCcw className="w-4 h-4" /> Luaj Përsëri</button>
+
+        <div className="grid grid-cols-2 gap-2">
+          {[{ id: gameState.whiteId, name: gameState.whiteName, color: 'w' as const, cap: gameState.capturedByWhite }, { id: gameState.blackId, name: gameState.blackName, color: 'b' as const, cap: gameState.capturedByBlack }].map((pl) => {
+            const active = gameState.status === 'playing' && gameState.turn === pl.color;
+            return (
+              <div key={pl.color} className={`px-3 py-2 rounded-2xl border flex items-center justify-between transition ${active ? 'bg-[#2d1e14] border-amber-400 ring-2 ring-amber-400/40 shadow-lg' : 'bg-[#1a110b]/80 border-amber-900/40 opacity-75'}`}>
+                <div className="flex items-center gap-2 truncate"><span className={`w-4 h-4 rounded-full border ${pl.color === 'w' ? 'bg-[#faf3e3] border-amber-500' : 'bg-stone-950 border-amber-400'}`} /><span className="text-xs sm:text-sm font-extrabold text-amber-50 truncate">{pl.name}</span></div>
+                <div className="flex items-center -space-x-1.5">{pl.cap.slice(-6).map((cp, i) => (<div key={i} className="w-4 h-5"><ChessPiece3D piece={cp} /></div>))}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="py-2 sm:py-4 flex items-center justify-center" style={{ perspective: view3D ? '1100px' : 'none' }}>
+          <div style={{ transform: view3D ? 'rotateX(16deg)' : 'none', transformStyle: 'preserve-3d' }} className="w-full max-w-[500px] aspect-square mx-auto p-3.5 sm:p-5 bg-gradient-to-b from-[#5c361c] via-[#3b200e] to-[#1f0f05] rounded-[32px] shadow-[0_18px_0_#140903,0_35px_70px_rgba(0,0,0,0.95)] border-2 border-amber-400/75 transition-transform duration-500">
+            <div className="w-full h-full grid grid-cols-8 grid-rows-8 rounded-xl overflow-visible border-2 border-amber-400/60 shadow-inner">
+              {rows.map((r) => cols.map((c) => {
+                const isLight = (r + c) % 2 === 0;
+                const piece = gameState.board[r]?.[c];
+                const isSel = selected !== null && selected.at(0) === r && selected.at(1) === c;
+                const isTarget = legalTargets.some(([lr, lc]) => lr === r && lc === c);
+                const isLast = (gameState.lastMove?.from?.at(0) === r && gameState.lastMove?.from?.at(1) === c) || (gameState.lastMove?.to?.at(0) === r && gameState.lastMove?.to?.at(1) === c);
+                const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
+                const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-amber-300' : isLast ? (isLight ? 'bg-amber-200/95' : 'bg-amber-600/90') : isLight ? 'bg-gradient-to-br from-[#f8eed9] to-[#e2cba1]' : 'bg-gradient-to-br from-[#6b4226] to-[#422512]';
+                const txtCol = isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
+                return (
+                  <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-all ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
+                    {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[9px] font-black select-none ${txtCol}`}>{8 - r}</span>}
+                    {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[9px] font-black select-none ${txtCol}`}>{files[c]}</span>}
+                    {piece && (<div style={{ transform: view3D ? 'rotateX(-14deg) translateY(-6px)' : 'none' }} className={`w-[92%] h-[92%] z-10 transition-transform duration-200 ${isSel ? 'scale-115 -translate-y-2' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
+                    {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-amber-400/80 ring-2 ring-white/80 shadow z-20" />)}
+                    {isTarget && piece && (<span className="absolute inset-1 rounded-xl border-4 border-amber-400 z-20 animate-pulse" />)}
+                  </button>
+                );
+              }))}
+            </div>
+          </div>
+        </div>
+
+        {gameState.status === 'finished' && (
+          <div className="bg-amber-500/20 border border-amber-400 rounded-2xl p-3 text-center flex items-center justify-center gap-2 text-amber-300 font-black text-sm shadow-lg">
+            <Trophy className="w-5 h-5 text-amber-400" />
+            <span>{gameState.winnerName} (+150 pikë në Leaderboard)</span>
+            <Crown className="w-5 h-5 text-amber-400" />
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {[{ id: gameState.whiteId, name: gameState.whiteName, color: 'w' as const, cap: gameState.capturedByWhite }, { id: gameState.blackId, name: gameState.blackName, color: 'b' as const, cap: gameState.capturedByBlack }].map((pl) => {
-          const active = gameState.status === 'playing' && gameState.turn === pl.color;
-          return (
-            <div key={pl.color} className={`px-3 py-2.5 rounded-2xl border flex items-center justify-between transition ${active ? 'bg-slate-800 border-amber-400 ring-2 ring-amber-400/40 shadow-lg' : 'bg-slate-900/70 border-slate-800 opacity-80'}`}>
-              <div className="flex items-center gap-2 truncate"><span className={`w-4 h-4 rounded-full border ${pl.color === 'w' ? 'bg-white border-slate-400' : 'bg-slate-950 border-slate-500'}`} /><span className="text-xs sm:text-sm font-extrabold text-white truncate">{pl.name}</span></div>
-              <div className="flex items-center -space-x-1.5">{pl.cap.slice(-6).map((cp, i) => (<div key={i} className="w-4 h-5"><ChessPiece3D piece={cp} /></div>))}</div>
+      <div className="w-full lg:w-64 flex flex-col gap-3 bg-[#1d130c]/90 border border-amber-500/25 rounded-2xl p-3.5">
+        {isBotMatch && isHost && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-amber-400/80 font-extrabold mb-1.5">Niveli i AI (Bot)</div>
+            <div className="grid grid-cols-3 gap-1">
+              {(['easy', 'medium', 'hard'] as const).map((d) => (
+                <button key={d} onClick={() => handleDifficulty(d)} className={`py-1.5 rounded-lg text-xs font-extrabold capitalize transition cursor-pointer ${(gameState.aiDifficulty || 'medium') === d ? 'bg-amber-500 text-stone-950 shadow' : 'bg-stone-900 text-amber-200/70 hover:bg-stone-800'}`}>
+                  {d === 'easy' ? 'Lehtë' : d === 'medium' ? 'Mesatar' : 'Vështirë'}
+                </button>
+              ))}
             </div>
-          );
-        })}
-      </div>
-
-      <div className="w-full max-w-[520px] aspect-square mx-auto p-3.5 sm:p-5 bg-gradient-to-b from-[#4e2e18] via-[#361e0e] to-[#1f1006] rounded-[32px] shadow-[0_14px_0_#1a0d05,0_30px_60px_rgba(0,0,0,0.95)] border-2 border-amber-400/70">
-        <div className="w-full h-full grid grid-cols-8 grid-rows-8 rounded-xl overflow-hidden border-2 border-amber-500/50">
-          {rows.map((r) => cols.map((c) => {
-            const isLight = (r + c) % 2 === 0;
-            const piece = gameState.board[r]?.[c];
-            const isSel = selected !== null && selected.at(0) === r && selected.at(1) === c;
-            const isTarget = legalTargets.some(([lr, lc]) => lr === r && lc === c);
-            const fromR = gameState.lastMove?.from?.at(0);
-            const fromC = gameState.lastMove?.from?.at(1);
-            const toR = gameState.lastMove?.to?.at(0);
-            const toC = gameState.lastMove?.to?.at(1);
-            const isLast = (fromR === r && fromC === c) || (toR === r && toC === c);
-            const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
-            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-gradient-to-br from-[#f7ecd7] to-[#e4cfa8] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]' : 'bg-gradient-to-br from-[#6e4427] to-[#472914] shadow-[inset_0_2px_4px_rgba(0,0,0,0.45)]';
-            const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
-            return (
-              <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
-                {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold select-none ${txtCol}`}>{8 - r}</span>}
-                {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[10px] font-extrabold select-none ${txtCol}`}>{files[c]}</span>}
-                {piece && (<div className={`w-[92%] h-[92%] -mt-1.5 z-10 transition-transform ${isSel ? 'scale-110 -translate-y-0.5' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
-                {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-black/20 z-20" />)}
-                {isTarget && piece && (<span className="absolute inset-1 rounded-full border-[5px] border-black/20 z-20" />)}
-              </button>
-            );
-          }))}
+          </div>
+        )}
+        <div className="flex-1 flex flex-col min-h-[140px]">
+          <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-300 mb-2"><History className="w-4 h-4" /> Historiku i Potezave</div>
+          <div className="flex-1 max-h-64 overflow-y-auto bg-black/40 rounded-xl p-2 border border-amber-900/30 space-y-1 text-xs font-mono text-amber-100/90">
+            {(gameState.moveHistory || []).length === 0 ? (<div className="text-amber-500/50 italic text-center py-4">Asnjë lëvizje ende</div>) : (gameState.moveHistory || []).map((m, idx) => (<div key={idx} className="flex justify-between px-2 py-0.5 rounded bg-amber-950/30"><span className="text-amber-500">#{idx + 1}</span><span>{m}</span></div>))}
+          </div>
         </div>
       </div>
-
-      {gameState.status === 'finished' && (
-        <div className="bg-amber-500/15 border border-amber-400/50 rounded-2xl p-3 text-center flex items-center justify-center gap-2 text-amber-300 font-black text-sm">
-          <Trophy className="w-5 h-5 text-amber-400" />
-          <span>{gameState.winnerName} (+150 pikë në Leaderboard)</span>
-          <Crown className="w-5 h-5 text-amber-400" />
-        </div>
-      )}
     </div>
   );
 }

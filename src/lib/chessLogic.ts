@@ -2,9 +2,12 @@ export type PieceColor = 'w' | 'b';
 export type PieceType = 'p' | 'r' | 'n' | 'b' | 'q' | 'k';
 export interface ChessPiece { color: PieceColor; type: PieceType; moved?: boolean; }
 export type Board = (ChessPiece | null)[][];
-export interface ChessGameState { board: Board; turn: PieceColor; whiteId: string; whiteName: string; blackId: string; blackName: string; status: 'playing' | 'finished'; winnerId: string | null; winnerName: string | null; inCheck: PieceColor | null; lastMove: { from: [number, number]; to: [number, number] } | null; capturedByWhite: ChessPiece[]; capturedByBlack: ChessPiece[]; lastActionText: string; }
+export interface ChessGameState { board: Board; turn: PieceColor; whiteId: string; whiteName: string; blackId: string; blackName: string; status: 'playing' | 'finished'; winnerId: string | null; winnerName: string | null; inCheck: PieceColor | null; lastMove: { from: [number, number]; to: [number, number] } | null; capturedByWhite: ChessPiece[]; capturedByBlack: ChessPiece[];
+  moveHistory?: string[];
+  aiDifficulty?: 'easy' | 'medium' | 'hard';
+  prevBoard?: Board | null; lastActionText: string; }
 export function createInitialBoard(): Board { const b: Board = Array.from({ length: 8 }, () => Array(8).fill(null)); const back: PieceType[] = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']; for (let c = 0; c < 8; c++) { b[0][c] = { color: 'b', type: back[c] }; b[1][c] = { color: 'b', type: 'p' }; b[6][c] = { color: 'w', type: 'p' }; b[7][c] = { color: 'w', type: back[c] }; } return b; }
-export function initChessGame(players: { id: string; nickname: string }[]): ChessGameState { const w = players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }; const bl = players.at(1) || { id: 'BOT_AI', nickname: '🤖 Kompjuteri (Bot)' }; return { board: createInitialBoard(), turn: 'w', whiteId: w.id, whiteName: w.nickname, blackId: bl.id, blackName: bl.nickname, status: 'playing', winnerId: null, winnerName: null, inCheck: null, lastMove: null, capturedByWhite: [], capturedByBlack: [], lastActionText: `Loja filloi! Lëvizin të Bardhat (${w.nickname}).` }; }
+export function initChessGame(players: { id: string; nickname: string }[]): ChessGameState { const w = players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }; const bl = players.at(1) || { id: 'BOT_AI', nickname: '🤖 Kompjuteri (Bot)' }; return { board: createInitialBoard(), turn: 'w', whiteId: w.id, whiteName: w.nickname, blackId: bl.id, blackName: bl.nickname, status: 'playing', winnerId: null, winnerName: null, inCheck: null, lastMove: null, capturedByWhite: [], capturedByBlack: [], moveHistory: [], aiDifficulty: 'medium', prevBoard: null, lastActionText: `Loja filloi! Lëvizin të Bardhat (${w.nickname}).` }; }
 
 function cloneBoard(b: Board): Board { return b.map((r) => r.map((c) => (c ? { ...c } : null))); }
 function inBounds(r: number, c: number) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
@@ -119,9 +122,9 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
 
   if (!anyMove) {
     if (check) {
-      return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: activeId, winnerName: moverName, inCheck: nextTurn, lastMove: { from, to }, capturedByWhite: capW, capturedByBlack: capB, lastActionText: `👑 SHAH-MAT! Fiton ${moverName}!` };
+      return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: activeId, winnerName: moverName, inCheck: nextTurn, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->], capturedByWhite: capW, capturedByBlack: capB, lastActionText: `👑 SHAH-MAT! Fiton ${moverName}!` };
     }
-    return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: null, winnerName: 'Barazim (Pat)', inCheck: null, lastMove: { from, to }, capturedByWhite: capW, capturedByBlack: capB, lastActionText: '🤝 Loja mbyllur në barazim (Pat)!' };
+    return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: null, winnerName: 'Barazim (Pat)', inCheck: null, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->], capturedByWhite: capW, capturedByBlack: capB, lastActionText: '🤝 Loja mbyllur në barazim (Pat)!' };
   }
 
   return {
@@ -129,7 +132,7 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
     board: nextBoard,
     turn: nextTurn,
     inCheck: check ? nextTurn : null,
-    lastMove: { from, to },
+    lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->],
     capturedByWhite: capW,
     capturedByBlack: capB,
     lastActionText: check ? `⚠️ SHAH! Kujdes ${nextName}!` : `Radha e ${nextName} (${nextTurn === 'w' ? 'Të Bardhat' : 'Të Zezat'}).`,
@@ -148,7 +151,7 @@ export function computeBotMove(state: ChessGameState): { from: [number, number];
       if (!pc || pc.color !== state.turn) continue;
       for (const [tr, tc] of getLegalMoves(state.board, r, c)) {
         const target = state.board[tr]?.[tc];
-        let score = Math.random() * 4;
+        const diff = state.aiDifficulty || 'medium'; let score = Math.random() * (diff === 'easy' ? 45 : diff === 'medium' ? 8 : 1.5);
         if (target) score += PIECE_VAL[target.type] * 10 - PIECE_VAL[pc.type];
         if (tr >= 3 && tr <= 4 && tc >= 3 && tc <= 4) score += 3;
         candidates.push({ from: Array.of(r, c) as [number, number], to: Array.of(tr, tc) as [number, number], score });
