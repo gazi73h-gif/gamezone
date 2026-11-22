@@ -3,193 +3,53 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BOT_RUMMY_ID, RummyGameState, RummyTile, Suit, addToRummyMeld, discardRummyTile, drawRummyTile, playRummyMeld, runBotRummyTurn } from '@/lib/rummyLogic';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, Layers, ArrowDownToLine, Sparkles, ArrowUpDown, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-
 interface RummyGameProps { gameState: RummyGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: RummyGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
-
-const SUIT_UI: Record<Suit, { sym: string; color: string }> = {
-  hearts: { sym: '♥', color: 'text-red-600' },
-  diamonds: { sym: '♦', color: 'text-red-600' },
-  spades: { sym: '♠', color: 'text-slate-900' },
-  clubs: { sym: '♣', color: 'text-slate-900' },
-};
-
-function cardRank(n: number): string {
-  if (n === 1) return 'A'; if (n === 11) return 'J'; if (n === 12) return 'Q'; if (n === 13) return 'K';
-  return String(n);
-}
-
+const SUIT_UI: Record<Suit, { sym: string; color: string }> = { hearts: { sym: '♥', color: 'text-red-600' }, diamonds: { sym: '♦', color: 'text-red-600' }, spades: { sym: '♠', color: 'text-slate-900' }, clubs: { sym: '♣', color: 'text-slate-900' } };
+function cardRank(n: number) { return n === 1 ? 'A' : n === 11 ? 'J' : n === 12 ? 'Q' : n === 13 ? 'K' : String(n); }
 function CardView({ tile, selected, isNew, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
   const s = SUIT_UI[tile.suit || 'spades'];
-  const bg = isNew ? 'bg-gradient-to-b from-amber-100 via-amber-200 to-amber-300 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.85)]' : 'bg-white shadow-md';
+  const bg = isNew ? 'bg-gradient-to-b from-amber-100 via-amber-200 to-amber-300 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'bg-white shadow-md';
   return (
     <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl border border-slate-300 flex flex-col justify-between transition-all ${bg} ${small ? 'w-9 h-13 p-1' : 'w-12 h-18 sm:w-14 sm:h-20 p-1.5 cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-xl z-20' : ''}`}>
-      {tile.isJoker ? (
-        <div className="flex flex-col items-center justify-center h-full text-purple-700">
-          <Crown className={small ? 'w-4 h-4 fill-amber-400 text-amber-500' : 'w-6 h-6 fill-amber-400 text-amber-500'} />
-          <span className="text-[8px] font-black tracking-tighter">JOKER</span>
-        </div>
-      ) : (
-        <>
-          <div className={`flex flex-col items-start leading-none font-black ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} ${s.color}`}>
-            <span>{cardRank(tile.number)}</span>
-            <span>{s.sym}</span>
-          </div>
-          <div className={`self-end leading-none ${small ? 'text-sm' : 'text-lg sm:text-xl'} ${s.color}`}>{s.sym}</div>
-        </>
-      )}
+      {tile.isJoker ? (<div className="flex flex-col items-center justify-center h-full text-purple-700"><Crown className={small ? 'w-4 h-4 fill-amber-400 text-amber-500' : 'w-6 h-6 fill-amber-400 text-amber-500'} /><span className="text-[8px] font-black">JOKER</span></div>) : (<><div className={`flex flex-col items-start leading-none font-black ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} ${s.color}`}><span>{cardRank(tile.number)}</span><span>{s.sym}</span></div><div className={`self-end leading-none ${small ? 'text-sm' : 'text-lg sm:text-xl'} ${s.color}`}>{s.sym}</div></>)}
     </button>
   );
 }
-
 export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdateState, onRestartGame }: RummyGameProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>(Array.of());
   const [localOrder, setLocalOrder] = useState<string[]>(Array.of());
   const [dragId, setDragId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const winRef = useRef(false);
-
   const isMyTurn = gameState.status === 'playing' && gameState.currentTurn === currentPlayerId;
   const me = gameState.players[currentPlayerId];
-
-  useEffect(() => {
-    if (gameState.status !== 'finished') { winRef.current = false; return; }
-    if (!winRef.current && gameState.winnerId === currentPlayerId && gameState.winnerName) {
-      winRef.current = true; recordWin(gameState.winnerName, 150, 'Rummy / Jol');
-    }
-  }, [gameState.status, gameState.winnerId, gameState.winnerName, currentPlayerId]);
-
-  useEffect(() => {
-    if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== BOT_RUMMY_ID) return;
-    const t = setTimeout(async () => { await onUpdateState(runBotRummyTurn(gameState)); }, 850);
-    return () => clearTimeout(t);
-  }, [gameState, isHost, onUpdateState]);
-
-  const ensureOrder = (tiles: RummyTile[]) => {
-    const ids = tiles.map((t) => t.id); const base = localOrder.filter((id) => ids.includes(id));
-    for (const id of ids) if (!base.includes(id)) base.push(id);
-    return base;
-  };
-
-  const hand: RummyTile[] = me ? me.hand.slice().sort((a, b) => {
-    const ia = localOrder.indexOf(a.id); const ib = localOrder.indexOf(b.id);
-    return ia !== -1 && ib !== -1 ? ia - ib : ia !== -1 ? -1 : ib !== -1 ? 1 : 0;
-  }) : Array.of();
-
-  const moveStep = (dir: -1 | 1) => {
-    if (!me || selectedIds.length !== 1) return;
-    const ord = ensureOrder(me.hand); const idx = ord.indexOf(selectedIds.at(0)!); const tgt = idx + dir;
-    if (idx < 0 || tgt < 0 || tgt >= ord.length) return;
-    const tmp = ord[idx]; ord[idx] = ord[tgt]; ord[tgt] = tmp; setLocalOrder(ord);
-  };
-
-  const handleDrop = (targetId: string) => {
-    if (!me || !dragId || dragId === targetId) return;
-    const ord = ensureOrder(me.hand); const f = ord.indexOf(dragId); const t = ord.indexOf(targetId);
-    if (f === -1 || t === -1) return;
-    ord.splice(f, 1); ord.splice(t, 0, dragId); setLocalOrder(ord); setDragId(null);
-  };
-
+  useEffect(() => { if (gameState.status !== 'finished') { winRef.current = false; return; } if (!winRef.current && gameState.winnerId === currentPlayerId && gameState.winnerName) { winRef.current = true; recordWin(gameState.winnerName, 150, 'Rummy / Jol'); } }, [gameState.status, gameState.winnerId, gameState.winnerName, currentPlayerId]);
+  useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== BOT_RUMMY_ID) return; const t = setTimeout(async () => { await onUpdateState(runBotRummyTurn(gameState)); }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
+  const ensureOrder = (tiles: RummyTile[]) => { const ids = tiles.map((t) => t.id); const base = localOrder.filter((id) => ids.includes(id)); for (const id of ids) if (!base.includes(id)) base.push(id); return base; };
+  const hand: RummyTile[] = me ? me.hand.slice().sort((a, b) => { const ia = localOrder.indexOf(a.id); const ib = localOrder.indexOf(b.id); return ia !== -1 && ib !== -1 ? ia - ib : ia !== -1 ? -1 : ib !== -1 ? 1 : 0; }) : Array.of();
+  const moveStep = (dir: -1 | 1) => { if (!me || selectedIds.length !== 1) return; const ord = ensureOrder(me.hand); const idx = ord.indexOf(selectedIds.at(0)!); const tgt = idx + dir; if (idx < 0 || tgt < 0 || tgt >= ord.length) return; const tmp = ord[idx]; ord[idx] = ord[tgt]; ord[tgt] = tmp; setLocalOrder(ord); };
+  const handleDrop = (targetId: string) => { if (!me || !dragId || dragId === targetId) return; const ord = ensureOrder(me.hand); const f = ord.indexOf(dragId); const t = ord.indexOf(targetId); if (f === -1 || t === -1) return; ord.splice(f, 1); ord.splice(t, 0, dragId); setLocalOrder(ord); setDragId(null); };
   const toggleSelect = (id: string) => { setErrorMsg(''); setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.concat(id))); };
   const sortByRun = () => { if (!me) return; const sOrd: Record<Suit, number> = { hearts: 1, spades: 2, diamonds: 3, clubs: 4 }; setLocalOrder(me.hand.slice().sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : sOrd[a.suit] - sOrd[b.suit] || a.number - b.number)).map((t) => t.id)); };
   const sortByGroup = () => { if (!me) return; setLocalOrder(me.hand.slice().sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : a.number - b.number)).map((t) => t.id)); };
-
   const handleDraw = async (src: 'deck' | 'discard') => { if (!isMyTurn || gameState.hasDrawn) return; setErrorMsg(''); await onUpdateState(drawRummyTile(gameState, currentPlayerId, src)); };
   const handleMeld = async () => { if (!isMyTurn) return; const r = playRummyMeld(gameState, currentPlayerId, selectedIds); if (r.error) { setErrorMsg(r.error); return; } setSelectedIds(Array.of()); await onUpdateState(r.state); };
   const handleAdd = async (mId: string) => { if (!isMyTurn || selectedIds.length === 0) return; const r = addToRummyMeld(gameState, currentPlayerId, selectedIds, mId); if (r.error) { setErrorMsg(r.error); return; } setSelectedIds(Array.of()); await onUpdateState(r.state); };
-  const handleDiscard = async () => {
-    if (!isMyTurn || !gameState.hasDrawn) { setErrorMsg('Tërhiq një letër fillimisht!'); return; }
-    if (selectedIds.length !== 1) { setErrorMsg('Zgjidh saktësisht 1 letër për ta hedhur!'); return; }
-    const id = selectedIds.at(0)!; setSelectedIds(Array.of()); await onUpdateState(discardRummyTile(gameState, currentPlayerId, id));
-  };
-  const topDiscard = gameState.discardPile.at(-1);
-
+  const handleDiscard = async () => { if (!isMyTurn || !gameState.hasDrawn) { setErrorMsg('Tërhiq një letër fillimisht!'); return; } if (selectedIds.length !== 1) { setErrorMsg('Zgjidh saktësisht 1 letër për ta hedhur!'); return; } const id = selectedIds.at(0)!; setSelectedIds(Array.of()); await onUpdateState(discardRummyTile(gameState, currentPlayerId, id)); };  const topDiscard = gameState.discardPile.at(-1);
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-3 bg-gradient-to-b from-slate-950 via-[#0d1f17] to-slate-950 p-3 sm:p-5 rounded-3xl border border-emerald-800/50 shadow-2xl">
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-700/80 px-4 py-2.5 rounded-2xl shadow-lg">
-        <div className="text-xs sm:text-sm font-bold text-emerald-100">{gameState.lastActionText}</div>
-        {gameState.status === 'finished' && isHost && onRestartGame && (
-          <button onClick={onRestartGame} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"><RotateCcw className="w-4 h-4" /> Luaj Përsëri</button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {gameState.playerOrder.map((id) => {
-          const pl = gameState.players[id]; const active = gameState.status === 'playing' && gameState.currentTurn === id;
-          return (
-            <div key={id} className={`px-3 py-2 rounded-2xl border flex items-center justify-between transition ${active ? 'bg-emerald-950/90 border-amber-400 ring-2 ring-amber-400/40 shadow-lg' : 'bg-slate-900/70 border-slate-800 opacity-75'}`}>
-              <span className="text-xs sm:text-sm font-extrabold text-white truncate">{pl.nickname}</span>
-              <span className="text-xs font-black px-2 py-0.5 rounded-full bg-black/40 text-amber-300">{pl.hand.length} letra</span>
-            </div>
-          );
-        })}
-      </div>
-
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-700/80 px-4 py-2.5 rounded-2xl shadow-lg"><div className="text-xs sm:text-sm font-bold text-emerald-100">{gameState.lastActionText}</div>{gameState.status === 'finished' && isHost && onRestartGame && (<button onClick={onRestartGame} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"><RotateCcw className="w-4 h-4" /> Luaj Përsëri</button>)}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{gameState.playerOrder.map((id) => { const pl = gameState.players[id]; const active = gameState.status === 'playing' && gameState.currentTurn === id; return (<div key={id} className={`px-3 py-2 rounded-2xl border flex items-center justify-between transition ${active ? 'bg-emerald-950/90 border-amber-400 ring-2 ring-amber-400/40 shadow-lg' : 'bg-slate-900/70 border-slate-800 opacity-75'}`}><span className="text-xs sm:text-sm font-extrabold text-white truncate">{pl.nickname}</span><span className="text-xs font-black px-2 py-0.5 rounded-full bg-black/40 text-amber-300">{pl.hand.length} letra</span></div>); })}</div>
       <div className="bg-gradient-to-br from-[#14532d] via-[#166534] to-[#0f3d21] p-4 sm:p-6 rounded-3xl border-4 border-[#5c361c] shadow-inner flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-center gap-6 py-2">
-          <button type="button" onClick={() => handleDraw('deck')} disabled={!isMyTurn || gameState.hasDrawn} className={`flex flex-col items-center gap-1.5 px-5 py-3 rounded-2xl bg-gradient-to-b from-blue-700 to-blue-950 border-2 border-white/80 text-white shadow-xl transition ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer hover:scale-105' : 'opacity-80 cursor-not-allowed'}`}>
-            <Layers className="w-6 h-6 text-amber-300" />
-            <span className="text-xs font-black">Pako ({gameState.deck.length})</span>
-          </button>
-
-          <div className="flex flex-col items-center gap-1">
-            {topDiscard ? (
-              <div onClick={() => handleDraw('discard')} className={`rounded-2xl p-1 ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer' : ''}`}>
-                <CardView tile={topDiscard} />
-              </div>
-            ) : (
-              <div className="w-14 h-20 rounded-xl border-2 border-dashed border-emerald-300/40 flex items-center justify-center text-[10px] text-emerald-200/60 font-bold">Bosh</div>
-            )}
-            <span className="text-[11px] font-bold text-emerald-100/80">Letra e hedhur</span>
-          </div>
+          <button type="button" onClick={() => handleDraw('deck')} disabled={!isMyTurn || gameState.hasDrawn} className={`flex flex-col items-center gap-1.5 px-5 py-3 rounded-2xl bg-gradient-to-b from-blue-700 to-blue-950 border-2 border-white/80 text-white shadow-xl transition ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer hover:scale-105' : 'opacity-80 cursor-not-allowed'}`}><Layers className="w-6 h-6 text-amber-300" /><span className="text-xs font-black">Pako ({gameState.deck.length})</span></button>
+          <div className="flex flex-col items-center gap-1">{topDiscard ? (<div onClick={() => handleDraw('discard')} className={`rounded-2xl p-1 ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer' : ''}`}><CardView tile={topDiscard} /></div>) : (<div className="w-14 h-20 rounded-xl border-2 border-dashed border-emerald-300/40 flex items-center justify-center text-[10px] text-emerald-200/60 font-bold">Bosh</div>)}<span className="text-[11px] font-bold text-emerald-100/80">Letra e hedhur</span></div>
         </div>
-
-        <div className="min-h-[120px] bg-black/25 rounded-2xl p-3 border border-emerald-400/20">
-          <div className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-200/70 mb-2">Kombinimet e hapura në tavolinë ({gameState.melds.length})</div>
-          {gameState.melds.length === 0 ? (
-            <div className="text-xs text-emerald-100/50 text-center py-6 italic">Ende nuk është hapur asnjë seri (4-5-6) apo grup (7-7-7).</div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {gameState.melds.map((m) => (
-                <div key={m.id} onClick={() => handleAdd(m.id)} className={`flex items-center gap-1 bg-black/35 p-2 rounded-2xl border transition ${isMyTurn && selectedIds.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-amber-500/20' : 'border-emerald-500/20'}`}>
-                  {m.tiles.map((t) => (<CardView key={t.id} tile={t} small />))}
-                  {isMyTurn && selectedIds.length > 0 && <PlusCircle className="w-5 h-5 text-amber-400 ml-1" />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <div className="min-h-[120px] bg-black/25 rounded-2xl p-3 border border-emerald-400/20"><div className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-200/70 mb-2">Kombinimet e hapura në tavolinë ({gameState.melds.length})</div>{gameState.melds.length === 0 ? (<div className="text-xs text-emerald-100/50 text-center py-6 italic">Ende nuk është hapur asnjë seri (4-5-6) apo grup (7-7-7).</div>) : (<div className="flex flex-wrap gap-3">{gameState.melds.map((m) => (<div key={m.id} onClick={() => handleAdd(m.id)} className={`flex items-center gap-1 bg-black/35 p-2 rounded-2xl border transition ${isMyTurn && selectedIds.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-amber-500/20' : 'border-emerald-500/20'}`}>{m.tiles.map((t) => (<CardView key={t.id} tile={t} small />))}{isMyTurn && selectedIds.length > 0 && <PlusCircle className="w-5 h-5 text-amber-400 ml-1" />}</div>))}</div>)}</div>
       </div>
-
       {errorMsg && <div className="bg-red-500/20 border border-red-500 text-red-200 text-xs font-bold px-3.5 py-2 rounded-xl text-center">{errorMsg}</div>}
-
-      {me && (
-        <div className="bg-slate-900/90 p-3.5 sm:p-5 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <button type="button" onClick={sortByRun} className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> A-2-3</button>
-              <button type="button" onClick={sortByGroup} className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> 7-7-7</button>
-              <button type="button" onClick={() => moveStep(-1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-35 text-white border border-slate-600 rounded-xl cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
-              <button type="button" onClick={() => moveStep(1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-35 text-white border border-slate-600 rounded-xl cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={handleMeld} disabled={!isMyTurn || selectedIds.length < 3} className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow cursor-pointer"><Sparkles className="w-4 h-4" /> Hap Kombinimin</button>
-              <button type="button" onClick={handleDiscard} disabled={!isMyTurn || !gameState.hasDrawn || selectedIds.length !== 1} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow cursor-pointer"><ArrowDownToLine className="w-4 h-4" /> Hidh Letrën</button>
-            </div>
-          </div>
-
-          <div className="bg-black/35 p-3 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 min-h-[92px]">
-            {hand.map((tile) => (<CardView key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} isNew={isMyTurn && gameState.lastDrawnTileId === tile.id} onClick={() => toggleSelect(tile.id)} draggable onDragStart={() => setDragId(tile.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop(tile.id)} />))}
-          </div>
-        </div>
-      )}
-
-      {gameState.status === 'finished' && (
-        <div className="bg-amber-500/20 border border-amber-400 rounded-2xl p-3 text-center flex items-center justify-center gap-2 text-amber-300 font-black text-sm shadow-lg">
-          <Trophy className="w-5 h-5 text-amber-400" />
-          <span>{gameState.winnerName} fitoi (+150 pikë në Leaderboard)!</span>
-          <Crown className="w-5 h-5 text-amber-400" />
-        </div>
-      )}
+      {me && (<div className="bg-slate-900/90 p-3.5 sm:p-5 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-1.5"><button type="button" onClick={sortByRun} className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> A-2-3</button><button type="button" onClick={sortByGroup} className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 text-xs font-extrabold px-2.5 py-1.5 rounded-xl cursor-pointer"><ArrowUpDown className="w-3.5 h-3.5" /> 7-7-7</button><button type="button" onClick={() => moveStep(-1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-35 text-white border border-slate-600 rounded-xl cursor-pointer"><ChevronLeft className="w-4 h-4" /></button><button type="button" onClick={() => moveStep(1)} disabled={selectedIds.length !== 1} className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-35 text-white border border-slate-600 rounded-xl cursor-pointer"><ChevronRight className="w-4 h-4" /></button></div><div className="flex items-center gap-2"><button type="button" onClick={handleMeld} disabled={!isMyTurn || selectedIds.length < 3} className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow cursor-pointer"><Sparkles className="w-4 h-4" /> Hap Kombinimin</button><button type="button" onClick={handleDiscard} disabled={!isMyTurn || !gameState.hasDrawn || selectedIds.length !== 1} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow cursor-pointer"><ArrowDownToLine className="w-4 h-4" /> Hidh Letrën</button></div></div><div className="bg-black/35 p-3 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 min-h-[92px]">{hand.map((tile) => (<CardView key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} isNew={isMyTurn && gameState.lastDrawnTileId === tile.id} onClick={() => toggleSelect(tile.id)} draggable onDragStart={() => setDragId(tile.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop(tile.id)} />))}</div></div>)}
+      {gameState.status === 'finished' && (<div className="bg-amber-500/20 border border-amber-400 rounded-2xl p-3 text-center flex items-center justify-center gap-2 text-amber-300 font-black text-sm shadow-lg"><Trophy className="w-5 h-5 text-amber-400" /><span>{gameState.winnerName} fitoi (+150 pikë në Leaderboard)!</span><Crown className="w-5 h-5 text-amber-400" /></div>)}
     </div>
   );
 }
