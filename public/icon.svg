@@ -1,0 +1,5 @@
+<svg xmlns="http://w3.org" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="110" fill="#0f172a"/>
+  <rect x="24" y="24" width="464" height="464" rx="90" fill="none" stroke="#f59e0b" stroke-width="16"/>
+  <text x="256" y="295" font-family="Arial, sans-serif" font-weight="900" font-size="190" fill="#f59e0b" text-anchor="middle">GZ</text>
+</svg>
