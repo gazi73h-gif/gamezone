@@ -1,21 +1,21 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { ChessGameState, ChessPiece, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
+import { BOT_ID, ChessGameState, ChessPiece, computeBotMove, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, ShieldAlert } from 'lucide-react';
 interface ChessGameProps { gameState: ChessGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: ChessGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
 function ChessPiece3D({ piece }: { piece: ChessPiece }) {
-  const isW = piece.color === 'w'; const gid = `cp_${piece.color}_${piece.type}`; const stroke = isW ? '#1e293b' : '#cbd5e1'; const accent = isW ? '#d97706' : '#f59e0b';
+  const isW = piece.color === 'w'; const gid = `cp_${piece.color}_${piece.type}`; const stroke = isW ? '#0f172a' : '#e2e8f0'; const gold = '#f59e0b';
   return (
-    <svg viewBox="0 0 48 56" className="w-full h-full overflow-visible drop-shadow-[0_6px_5px_rgba(0,0,0,0.75)] select-none">
-      <defs><linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="100%">{isW ? (<><stop offset="0%" stopColor="#ffffff" /><stop offset="55%" stopColor="#f8fafc" /><stop offset="100%" stopColor="#cbd5e1" /></>) : (<><stop offset="0%" stopColor="#475569" /><stop offset="50%" stopColor="#1e293b" /><stop offset="100%" stopColor="#020617" /></>)}</linearGradient></defs>
-      <ellipse cx="24" cy="51" rx="16" ry="3.8" fill="rgba(0,0,0,0.5)" />
-      {piece.type === 'p' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M12 49 H36 L34 44 H14 Z" /><path d="M16 44 C17 35, 20 29, 20 24 H28 C28 29, 31 35, 32 44 Z" /><ellipse cx="24" cy="24" rx="6.5" ry="2.2" /><circle cx="24" cy="16" r="7.5" /></g>)}
-      {piece.type === 'r' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M11 49 H37 L35 44 H13 Z" /><path d="M15 44 L17 21 H31 L33 44 Z" /><path d="M13 21 V12 H18 V15 H21.5 V12 H26.5 V15 H30 V12 H35 V21 Z" /><line x1="16" y1="25" x2="32" y2="25" stroke={accent} strokeWidth="1.5" /></g>)}
-      {piece.type === 'n' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M11 49 H37 L35 44 H13 Z" /><path d="M15 44 C15 35, 19 29, 22 25 C17 26, 13 24, 13 20 C13 15, 18 11, 22 9 L21 5 L26 8 C32 10, 35 17, 34 27 C33 34, 34 39, 34 44 Z" /><circle cx="19" cy="15" r="1.4" fill={accent} stroke="none" /></g>)}
-      {piece.type === 'b' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M11 49 H37 L35 44 H13 Z" /><path d="M15 44 C16 35, 19 29, 20 25 H28 C29 29, 32 35, 33 44 Z" /><path d="M17 25 C16 18, 20 11, 24 8 C28 11, 32 18, 31 25 Z" /><circle cx="24" cy="5.5" r="2.6" fill={accent} /><line x1="21" y1="16" x2="27" y2="19" stroke={accent} strokeWidth="1.6" /></g>)}
-      {piece.type === 'q' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 49 H38 L36 44 H12 Z" /><path d="M14 44 L17 24 H31 L34 44 Z" /><path d="M15 24 L11 12 L18 18 L24 9 L30 18 L37 12 L33 24 Z" /><circle cx="11" cy="10.5" r="2" fill={accent} /><circle cx="24" cy="7.5" r="2.4" fill={accent} /><circle cx="37" cy="10.5" r="2" fill={accent} /></g>)}
-      {piece.type === 'k' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 49 H38 L36 44 H12 Z" /><path d="M14 44 L17 23 H31 L34 44 Z" /><path d="M15 23 C14 16, 19 12, 24 12 C29 12, 34 16, 33 23 Z" /><path d="M22.5 12 V4 H25.5 V12 M20 7 H28" stroke={accent} strokeWidth="2.4" /></g>)}
+    <svg viewBox="0 0 50 58" className="w-full h-full overflow-visible drop-shadow-[0_7px_6px_rgba(0,0,0,0.75)] select-none">
+      <defs><linearGradient id={gid} x1="15%" y1="0%" x2="85%" y2="100%">{isW ? (<><stop offset="0%" stopColor="#ffffff" /><stop offset="50%" stopColor="#f1f5f9" /><stop offset="100%" stopColor="#94a3b8" /></>) : (<><stop offset="0%" stopColor="#64748b" /><stop offset="45%" stopColor="#1e293b" /><stop offset="100%" stopColor="#020617" /></>)}</linearGradient></defs>
+      <ellipse cx="25" cy="53" rx="17" ry="4" fill="rgba(0,0,0,0.5)" />
+      {piece.type === 'p' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M11 51 H39 L36 45 H14 Z" /><path d="M16 45 C17 35, 20 29, 21 24 H29 C30 29, 33 35, 34 45 Z" /><ellipse cx="25" cy="24" rx="7.5" ry="2.5" fill={gold} /><circle cx="25" cy="15.5" r="8" /></g>)}
+      {piece.type === 'r' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 L17 21 H33 L35 45 Z" /><path d="M12 21 V11 H17.5 V15 H22 V11 H28 V15 H32.5 V11 H38 V21 Z" /><rect x="16.5" y="21" width="17" height="3" fill={gold} /></g>)}
+      {piece.type === 'n' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 C15 35, 19 29, 23 25 C17 26, 12 24, 12 19.5 C12 14, 18 10, 22 8 L20.5 3.5 L26.5 7 C33.5 9.5, 37 17, 35.5 28 C34.5 35, 35.5 40, 35.5 45 Z" /><circle cx="19" cy="14.5" r="1.6" fill={gold} stroke="none" /></g>)}
+      {piece.type === 'b' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 C16 35, 19 29, 21 25 H29 C31 29, 34 35, 35 45 Z" /><path d="M16.5 25 C15.5 17, 20 10, 25 7 C30 10, 34.5 17, 33.5 25 Z" /><circle cx="25" cy="4.5" r="2.8" fill={gold} /><path d="M21 15.5 L29 19.5 M25 13 V21" stroke={gold} strokeWidth="1.8" /></g>)}
+      {piece.type === 'q' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M9 51 H41 L38 45 H12 Z" /><path d="M14 45 L17 24 H33 L36 45 Z" /><path d="M14.5 24 L10 11 L18 18 L25 8 L32 18 L40 11 L35.5 24 Z" /><rect x="16.5" y="23.5" width="17" height="3" fill={gold} /><circle cx="10" cy="9.5" r="2.2" fill={gold} /><circle cx="25" cy="6.5" r="2.6" fill={gold} /><circle cx="40" cy="9.5" r="2.2" fill={gold} /></g>)}
+      {piece.type === 'k' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M9 51 H41 L38 45 H12 Z" /><path d="M14 45 L17 23 H33 L36 45 Z" /><path d="M14.5 23 C13.5 15, 19 11, 25 11 C31 11, 36.5 15, 35.5 23 Z" /><rect x="16.5" y="22.5" width="17" height="3" fill={gold} /><path d="M23.5 11 V3 H26.5 V11 M20.5 6.5 H29.5" stroke={gold} strokeWidth="2.8" /></g>)}
     </svg>
   );
 }
@@ -36,6 +36,16 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
     }
   }, [gameState.status, gameState.winnerId, gameState.winnerName, currentPlayerId]);
 
+  useEffect(() => {
+    if (gameState.status !== 'playing' || !isHost) return;
+    const isBotTurn = (gameState.turn === 'w' && gameState.whiteId === BOT_ID) || (gameState.turn === 'b' && gameState.blackId === BOT_ID);
+    if (!isBotTurn) return;
+    const timer = setTimeout(async () => {
+      const mv = computeBotMove(gameState);
+      if (mv) await onUpdateState(makeChessMove(gameState, BOT_ID, mv.from, mv.to));
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [gameState, isHost, onUpdateState]);
   const legalTargets = selected ? getLegalMoves(gameState.board, selected.at(0)!, selected.at(1)!) : [];
   const handleCellClick = async (r: number, c: number) => {
     if (!isMyTurn) return;
