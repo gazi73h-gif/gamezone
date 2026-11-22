@@ -175,6 +175,9 @@ export default function RoomLobbyPage() {
     } else if (room.game_type === 'ludo') { const initialState = initLudoGame(players.map((p) => ({ id: p.player_id, nickname: p.nickname }))); await supabase.from('rooms').update({ status: 'playing', game_state: initialState }).eq('code', roomCode);
     } else if (room.game_type === 'rummy') {
       const initialState = initRummyGame(players.map((p) => ({ id: p.player_id, nickname: p.nickname })));
+      await supabase.from('rooms').update({ status: 'playing', game_state: initialState }).eq('code', roomCode);
+    } else if (room.game_type === 'rummy') {
+      const initialState = initRummyGame(players.map((p) => ({ id: p.player_id, nickname: p.nickname })));
       await supabase.from('rooms').update({ status: 'playing', game_state: initialState }).eq('code', roomCode); } else {
 
       alert('Kjo lojë do të shtohet në hapat e radhës!');

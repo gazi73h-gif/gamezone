@@ -71,7 +71,7 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
     return () => clearTimeout(t);
   }, [gameState, isHost, onUpdateState]);
 
-  const hand = me ? me.hand.slice().sort((a, b) => {
+  const hand: RummyTile[] = me ? me.hand.slice().sort((a, b) => {
     const ia = localOrder.indexOf(a.id); const ib = localOrder.indexOf(b.id);
     if (ia !== -1 && ib !== -1) return ia - ib;
     if (ia !== -1) return -1;
