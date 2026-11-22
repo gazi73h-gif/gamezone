@@ -28,15 +28,57 @@ export default function HomePage() {
   const [openRooms, setOpenRooms] = useState<Array<{ code: string; game_type: string; playerCount: number; hostName: string }>>(Array.of());
 
   const fetchOpenRooms = async () => {
-    const { data: roomsData } = await supabase.from('rooms').select('code, game_type').eq('status', 'waiting').order('created_at', { ascending: false }).limit(10);
-    if (!roomsData || roomsData.length === 0) { setOpenRooms(Array.of()); return; }
-    const codes = roomsData.map((r) => r.code);
-    const { data: playersData } = await supabase.from('room_players').select('room_code, nickname, seat_order').in('room_code', codes);
-    const formatted = roomsData.map((r) => {
-      const rp = (playersData || []).filter((p) => p.room_code === r.code);
-      const host = rp.find((p) => p.seat_order === 1) || rp.at(0);
-      return { code: r.code, game_type: r.game_type, playerCount: rp.length, hostName: host?.nickname || 'Lojtar' };
-    }).filter((r) => r.playerCount > 0);
+    const { data: roomsData } = await supabase
+      .from('rooms')
+      .select('code, game_type, created_at')
+      .eq('status', 'waiting')
+      .order('created_at', { ascending: false })
+      .limit(15);
+
+    if (!roomsData || roomsData.length === 0) {
+      setOpenRooms([]);
+      return;
+    }
+
+    // Mbylle dhe pastro automatikisht çdo dhomë pa aktivitet më të vjetër se 5 minuta
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const staleCodes = roomsData
+      .filter((r) => r.created_at && new Date(r.created_at).getTime() < fiveMinutesAgo)
+      .map((r) => r.code);
+
+    if (staleCodes.length > 0) {
+      await supabase.from('room_players').delete().in('room_code', staleCodes);
+      await supabase.from('rooms').delete().in('code', staleCodes);
+    }
+
+    const activeRooms = roomsData.filter(
+      (r) => !r.created_at || new Date(r.created_at).getTime() >= fiveMinutesAgo
+    );
+
+    const codes = activeRooms.map((r) => r.code);
+    if (codes.length === 0) {
+      setOpenRooms([]);
+      return;
+    }
+
+    const { data: playersData } = await supabase
+      .from('room_players')
+      .select('room_code, nickname, seat_order')
+      .in('room_code', codes);
+
+    const formatted = activeRooms
+      .map((r) => {
+        const rp = (playersData || []).filter((p) => p.room_code === r.code);
+        const host = rp.find((p) => p.seat_order === 1) || rp[0];
+        return {
+          code: r.code,
+          game_type: r.game_type,
+          playerCount: rp.length,
+          hostName: host?.nickname || 'Lojtar',
+        };
+      })
+      .filter((r) => r.playerCount > 0);
+
     setOpenRooms(formatted);
   };
 
