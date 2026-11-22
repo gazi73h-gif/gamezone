@@ -350,7 +350,7 @@ export default function HomePage() {
                       {gameInfo?.title || r.game_type}
                     </div>
                     <div className="text-xs textëslate-400 mt-0.5">
-                      Hostë <span className="text-amber-400 font-medium">{r.hostName}</span> â€¢{' '}
+                      Hostë <span className="text-amber-400 font-medium">{r.hostName}</span> ë{' '}
                       <span className="text-emerald-400">{r.playerCountë Lojtarëspan>
                     </div>
                   </div>
