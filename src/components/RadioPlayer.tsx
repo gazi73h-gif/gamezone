@@ -4,14 +4,15 @@ import React, { useState, useRef } from 'react';
 import { Radio, Play, Square, SkipForward } from 'lucide-react';
 
 const STATIONS = [
-  { name: 'Chill Lounge', url: 'https://somafm.com' },
-  { name: 'FIP Groove', url: 'https://radiofrance.fr' },
+  { name: 'Radio Shqip 92.0', url: '/api/radio?station=shqip' },
+  { name: 'Radio Dukagjini', url: '/api/radio?station=dukagjini' },
 ];
 
 export default function RadioPlayer() {
   const [stationIndex, setStationIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentStation = STATIONS[stationIndex];
@@ -19,6 +20,7 @@ export default function RadioPlayer() {
   const handleToggle = async () => {
     const audio = audioRef.current;
     if (!audio) return;
+    setErrorMsg('');
 
     if (isPlaying) {
       audio.pause();
@@ -26,16 +28,12 @@ export default function RadioPlayer() {
     } else {
       setIsLoading(true);
       try {
+        audio.load();
         await audio.play();
         setIsPlaying(true);
       } catch {
-        try {
-          audio.load();
-          await audio.play();
-          setIsPlaying(true);
-        } catch {
-          setIsPlaying(false);
-        }
+        setIsPlaying(false);
+        setErrorMsg('S’u lidh');
       } finally {
         setIsLoading(false);
       }
@@ -45,8 +43,23 @@ export default function RadioPlayer() {
   const handleNextStation = () => {
     const nextIdx = (stationIndex + 1) % STATIONS.length;
     setStationIndex(nextIdx);
-    setIsPlaying(false);
-    setIsLoading(false);
+    setErrorMsg('');
+    if (isPlaying) {
+      setIsLoading(true);
+      setTimeout(async () => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        try {
+          audio.load();
+          await audio.play();
+        } catch {
+          setIsPlaying(false);
+          setErrorMsg('S’u lidh');
+        } finally {
+          setIsLoading(false);
+        }
+      }, 150);
+    }
   };
 
   return (
@@ -59,11 +72,13 @@ export default function RadioPlayer() {
         onPlaying={() => {
           setIsPlaying(true);
           setIsLoading(false);
+          setErrorMsg('');
         }}
         onPause={() => setIsPlaying(false)}
         onError={() => {
           setIsPlaying(false);
           setIsLoading(false);
+          setErrorMsg('Gabim stream');
         }}
       />
 
@@ -76,7 +91,13 @@ export default function RadioPlayer() {
         }`}
       >
         <Radio className={`w-4 h-4 ${isPlaying ? 'text-white animate-pulse' : 'text-amber-400'}`} />
-        <span>{isLoading ? 'Duke u lidhur...' : currentStation.name}</span>
+        <span>
+          {isLoading
+            ? 'Duke u lidhur...'
+            : errorMsg
+            ? `${currentStation.name} (${errorMsg})`
+            : currentStation.name}
+        </span>
         {isPlaying ? (
           <Square className="w-3.5 h-3.5 fill-current" />
         ) : (
