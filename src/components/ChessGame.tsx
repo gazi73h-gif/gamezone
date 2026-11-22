@@ -128,8 +128,8 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
             const toC = gameState.lastMove?.to?.at(1);
             const isLast = (fromR === r && fromC === c) || (toR === r && toC === c);
             const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
-            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-amber-300' : isLast ? (isLight ? 'bg-amber-200' : 'bg-amber-600/80') : isLight ? 'bg-slate-200' : 'bg-slate-800';
-            const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-slate-700' : 'text-slate-300';
+            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-[#eef4fa]' : 'bg-[#4b7399]';
+            const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-[#4b7399]' : 'text-[#eef4fa]';
             return (
               <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
                 {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold select-none ${txtCol}`}>{8 - r}</span>}
