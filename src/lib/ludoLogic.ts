@@ -39,7 +39,12 @@ export function toGlobalPos(color: LudoColor, relPos: number): number {
 export function initLudoGame(
   playersList: { id: string; nickname: string }[]
 ): LudoGameState {
-  const limited = playersList.slice(0, 4);
+  // Nëse ka vetëm 1 lojtar real, shto Bot-in automatikisht
+  const rawList =
+    playersList.length < 2
+      ? [playersList[0], { id: 'BOT_LUDO', nickname: '🤖 Bot Ludo' }]
+      : playersList;
+  const limited = rawList.slice(0, 4);
   const players: Record<string, LudoPlayer> = {};
   const playerOrder: string[] = [];
 

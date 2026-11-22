@@ -67,11 +67,17 @@ export function shuffleUno(cards: Array<UnoCard>): Array<UnoCard> {
 export function initUnoGame(
   playerList: Array<{ id: string; nickname: string }>
 ): UnoGameState {
+  // Nëse ka vetëm 1 lojtar real, shto Bot-in automatikisht
+  const list =
+    playerList.length < 2
+      ? [playerList[0], { id: 'BOT_UNO', nickname: '🤖 Bot Uno' }]
+      : playerList;
+
   const deck = createUnoDeck();
   const players: Record<string, UnoPlayerState> = {};
-  const playerOrder = playerList.map((p) => p.id);
+  const playerOrder = list.map((p) => p.id);
 
-  for (const p of playerList) {
+  for (const p of list) {
     players[p.id] = {
       id: p.id,
       nickname: p.nickname,

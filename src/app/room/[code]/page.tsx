@@ -60,11 +60,64 @@ export default function RoomLobbyPage() {
   const [inactivityWarning, setInactivityWarning] = useState<number | null>(null);
   const isClosingRef = useRef<boolean>(false);
 
+  // Gjurmimi i lojtarëve real (jo-bot) për auto-start dhe auto-restart
+  const prevRealCountRef = useRef<number>(0);
+  const [playingWithBot, setPlayingWithBot] = useState<boolean>(false);
+
   // Rivendos kohën e aktivitetit sa herë ka veprim nga lojtari ose përditësim loje
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
     setInactivityWarning(null);
   }, []);
+
+  // Helper: ndërto gjendjen fillestare të lojës me listën e lojtarëve (mund të përfshijë bot)
+  const buildInitialGameState = useCallback(
+    async (
+      gameType: string,
+      playerList: { player_id: string; nickname: string }[],
+      withBot: boolean
+    ) => {
+      const mapped = playerList.map((p) => ({ id: p.player_id, nickname: p.nickname }));
+
+      if (gameType === 'yamb') {
+        const finalList =
+          withBot
+            ? [mapped[0], { id: 'BOT_YAMB', nickname: '🤖 Bot Yamb' }]
+            : mapped;
+        const sheets: Record<string, ReturnType<typeof createEmptySheet>> = {};
+        finalList.forEach((p) => { sheets[p.id] = createEmptySheet(); });
+        return {
+          currentTurnPlayerId: finalList[0].id,
+          dice: [1, 2, 3, 4, 5, 6],
+          held: [false, false, false, false, false, false],
+          rollsLeft: 3,
+          calledRow: null,
+          sheets,
+          winnerId: null,
+        };
+      } else if (gameType === 'pishpirik') {
+        return initPishpirikGame(withBot ? [mapped[0]] : mapped);
+      } else if (gameType === 'shah') {
+        return initChessGame(
+          withBot
+            ? [mapped[0], { id: 'BOT_AI', nickname: '🤖 Bot Shah' }]
+            : mapped
+        );
+      } else if (gameType === 'uno') {
+        return initUnoGame(withBot ? [mapped[0]] : mapped);
+      } else if (gameType === 'ludo') {
+        return initLudoGame(withBot ? [mapped[0]] : mapped);
+      } else if (gameType === 'rummy') {
+        return initRummyGame(
+          withBot
+            ? [mapped[0], { id: 'BOT_RUMMY', nickname: '🤖 Bot Rummy' }]
+            : mapped
+        );
+      }
+      return null;
+    },
+    []
+  );
 
   useEffect(() => {
     const storedId = localStorage.getItem('gamezone_player_id') || '';
@@ -94,7 +147,54 @@ export default function RoomLobbyPage() {
         .eq('room_code', roomCode)
         .order('seat_order', { ascending: true });
 
-      if (playersData) setPlayers(playersData);
+      if (playersData) {
+        setPlayers(playersData);
+
+        // Gjej vetëm lojtarët real (jo-bot)
+        const BOT_IDS = ['BOT_YAMB', 'BOT_PISH', 'BOT_AI', 'BOT_UNO', 'BOT_LUDO', 'BOT_RUMMY'];
+        const realPlayers = playersData.filter(
+          (p) => !BOT_IDS.includes(p.player_id)
+        );
+        const realCount = realPlayers.length;
+        const prevCount = prevRealCountRef.current;
+        const storedHostId = localStorage.getItem('gamezone_player_id') || '';
+        const isHostNow = roomData.host_id === storedHostId;
+
+        // AUTO-START me Bot: vetëm 1 lojtar real + loja është në pritje
+        if (
+          isHostNow &&
+          realCount === 1 &&
+          roomData.status === 'waiting'
+        ) {
+          const gs = await buildInitialGameState(roomData.game_type, realPlayers, true);
+          if (gs) {
+            await supabase
+              .from('rooms')
+              .update({ status: 'playing', game_state: gs })
+              .eq('code', roomCode);
+            setPlayingWithBot(true);
+          }
+        }
+
+        // AUTO-RESTART me lojtarë real: kaloi nga 1 → 2+ lojtarë real
+        if (
+          isHostNow &&
+          prevCount <= 1 &&
+          realCount >= 2 &&
+          prevCount !== realCount
+        ) {
+          const gs = await buildInitialGameState(roomData.game_type, realPlayers, false);
+          if (gs) {
+            await supabase
+              .from('rooms')
+              .update({ status: 'playing', game_state: gs })
+              .eq('code', roomCode);
+            setPlayingWithBot(false);
+          }
+        }
+
+        prevRealCountRef.current = realCount;
+      }
     };
 
     fetchRoomData();
@@ -138,7 +238,7 @@ export default function RoomLobbyPage() {
       clearInterval(backupInterval);
       supabase.removeChannel(channel);
     };
-  }, [roomCode, router, resetActivity]);
+  }, [roomCode, router, resetActivity, buildInitialGameState]);
 
   // Kontrolluesi i mosaktivitetit për 5 minuta për çdo dhomë dhe çdo lojë
   useEffect(() => {
@@ -286,6 +386,13 @@ export default function RoomLobbyPage() {
     </div>
   ) : null;
 
+  // Baneri "Duke luajtur me Bot AI"
+  const BotBanner = playingWithBot ? (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9998] bg-indigo-700/95 border border-indigo-400 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 max-w-[90vw] text-center">
+      🤖 Duke luajtur me Bot AI — sapo të futet një lojtar online, loja rifillon automatikisht!
+    </div>
+  ) : null;
+
   if (!room) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-400 bg-[#080d12]">
@@ -300,6 +407,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-[#080d12] text-white">
         {InactivityWarningBanner}
+        {BotBanner}
         <RummyGame
           gameState={room.game_state as RummyGameState}
           currentPlayerId={currentPlayerId}
@@ -320,6 +428,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-slate-950 text-white pb-10">
         {InactivityWarningBanner}
+        {BotBanner}
         <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
           <button
             onClick={handleLeaveRoom}
@@ -353,6 +462,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-slate-950 text-white">
         {InactivityWarningBanner}
+        {BotBanner}
         <div className="max-w-5xl mx-auto px-3 pt-4 flex items-center justify-between">
           <button
             onClick={handleLeaveRoom}
@@ -380,6 +490,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-slate-950 text-white pb-10">
         {InactivityWarningBanner}
+        {BotBanner}
         <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
           <button
             onClick={handleLeaveRoom}
@@ -413,6 +524,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-slate-950 text-white pb-10">
         {InactivityWarningBanner}
+        {BotBanner}
         <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
           <button
             onClick={handleLeaveRoom}
@@ -446,6 +558,7 @@ export default function RoomLobbyPage() {
     return (
       <div className="relative min-h-screen bg-slate-950 text-white pb-10">
         {InactivityWarningBanner}
+        {BotBanner}
         <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
           <button
             onClick={handleLeaveRoom}

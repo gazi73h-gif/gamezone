@@ -56,12 +56,18 @@ export function shuffleDeck(cards: Array<Card>): Array<Card> {
 export function initPishpirikGame(
   playerList: Array<{ id: string; nickname: string }>
 ): PishpirikGameState {
+  // Nëse ka vetëm 1 lojtar real, shto Bot-in automatikisht
+  const list =
+    playerList.length < 2
+      ? [playerList[0], { id: 'BOT_PISH', nickname: '🤖 Bot Pishpirik' }]
+      : playerList;
+
   const deck = createDeck();
   const table = deck.splice(0, 4);
   const players: Record<string, PishpirikPlayerState> = {};
-  const playerOrder = playerList.map((p) => p.id);
+  const playerOrder = list.map((p) => p.id);
 
-  for (const p of playerList) {
+  for (const p of list) {
     players[p.id] = {
       id: p.id,
       nickname: p.nickname,
