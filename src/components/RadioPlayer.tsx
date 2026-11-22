@@ -4,8 +4,9 @@ import React, { useState, useRef } from 'react';
 import { Radio, Play, Square, SkipForward } from 'lucide-react';
 
 const STATIONS = [
-  { name: 'Chill Lounge (SomaFM)', url: 'https://somafm.com' },
-  { name: 'Radio Dukagjini', url: 'https://voscast.com' },
+  { name: 'Chill Lounge', url: 'https://somafm.com' },
+  { name: 'Deep House', url: 'https://somafm.com' },
+  { name: 'Lush Vocals', url: 'https://somafm.com' },
 ];
 
 export default function RadioPlayer() {
@@ -28,8 +29,9 @@ export default function RadioPlayer() {
     } else {
       setIsLoading(true);
       try {
-        audio.src = currentStation.url;
-        audio.load();
+        if (!audio.src || audio.src !== currentStation.url) {
+          audio.src = currentStation.url;
+        }
         await audio.play();
         setIsPlaying(true);
       } catch {
@@ -49,8 +51,8 @@ export default function RadioPlayer() {
     if (audio && isPlaying) {
       setIsLoading(true);
       try {
+        audio.pause();
         audio.src = STATIONS[nextIdx].url;
-        audio.load();
         await audio.play();
       } catch {
         setIsPlaying(false);
