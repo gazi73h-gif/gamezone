@@ -143,7 +143,7 @@ function testRunSequence(
   let gaps = 0;
   for (let i = 1; i < sorted.length; i++) {
     const diff = sorted[i].number - sorted[i - 1].number;
-    if (diff <= 0) return { valid: false, points: 0 }; // Duplikata nuk lejohen në seri
+    if (diff <= 0) return { valid: false, points: 0 };
     gaps += diff - 1;
   }
 
@@ -169,7 +169,6 @@ function testRunSequence(
   for (let num = startNum; num <= endNum; num++) {
     const existing = sorted.find((t) => t.number === num);
     if (existing) {
-      // Rivendos A si 1 nëse ishte 14
       const actualTile = existing.number === 14 ? { ...existing, number: 1 } : existing;
       fullArr.push(actualTile);
       totalPts += getTilePointValue(actualTile, { isLowAce: !isAceHigh });
@@ -220,7 +219,6 @@ function findMeldPartition(
 ): { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] | null {
   if (tiles.length < 6) return null;
 
-  // Provo ndarje në grupe me madhësi të paktën 3
   const n = tiles.length;
   for (let size = 3; size <= n - 3; size++) {
     const combinations = getCombinations(tiles, size);
@@ -239,7 +237,6 @@ function findMeldPartition(
         ];
       }
 
-      // Rikursivisht provo nëse groupB mund të ndahet më tej
       const sub = findMeldPartition(groupB);
       if (sub) {
         return [{ type: vA.type, tiles: vA.sorted, points: vA.points }, ...sub];
@@ -257,6 +254,187 @@ function getCombinations<T>(arr: T[], k: number): T[][] {
   const withHead = getCombinations(tail, k - 1).map((c) => [head, ...c]);
   const withoutHead = getCombinations(tail, k);
   return [...withHead, ...withoutHead];
+}
+
+// Algoritëm inteligjent që gjen kombinimet më të mira në dorë dhe maksimizon pikët
+export function findAllMeldsInHand(
+  hand: RummyTile[]
+): { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] {
+  const candidates: {
+    type: 'group' | 'run';
+    tiles: RummyTile[];
+    points: number;
+    tileIds: Set<string>;
+  }[] = [];
+
+  const nonJokers = hand.filter((t) => !t.isJoker);
+  const jokers = hand.filter((t) => t.isJoker);
+
+  // 1. Kërko grupe sipas numrit (3 ose 4 shenja të ndryshme)
+  const byNum: Record<number, RummyTile[]> = {};
+  for (const t of nonJokers) {
+    if (!byNum[t.number]) byNum[t.number] = [];
+    if (!byNum[t.number].some((x) => x.suit === t.suit)) byNum[t.number].push(t);
+  }
+
+  for (const list of Object.values(byNum)) {
+    if (list.length >= 3) {
+      const v = validateSingleMeld(list);
+      if (v.valid && v.sorted && v.type) {
+        candidates.push({
+          type: v.type,
+          tiles: v.sorted,
+          points: v.points,
+          tileIds: new Set(v.sorted.map((t) => t.id)),
+        });
+      }
+      if (list.length === 4) {
+        for (let i = 0; i < 4; i++) {
+          const sub = list.filter((_, idx) => idx !== i);
+          const vSub = validateSingleMeld(sub);
+          if (vSub.valid && vSub.sorted && vSub.type) {
+            candidates.push({
+              type: vSub.type,
+              tiles: vSub.sorted,
+              points: vSub.points,
+              tileIds: new Set(vSub.sorted.map((t) => t.id)),
+            });
+          }
+        }
+      }
+    } else if (list.length === 2 && jokers.length >= 1) {
+      const withJ = [...list, jokers[0]];
+      const v = validateSingleMeld(withJ);
+      if (v.valid && v.sorted && v.type) {
+        candidates.push({
+          type: v.type,
+          tiles: v.sorted,
+          points: v.points,
+          tileIds: new Set(v.sorted.map((t) => t.id)),
+        });
+      }
+    }
+  }
+
+  // 2. Kërko sekuenca (Runs) sipas shenjës
+  const bySuit: Record<Suit, RummyTile[]> = { hearts: [], diamonds: [], spades: [], clubs: [] };
+  for (const t of nonJokers) {
+    bySuit[t.suit].push(t);
+  }
+
+  for (const suitTiles of Object.values(bySuit)) {
+    if (suitTiles.length < 2) continue;
+    const uniqueByNum = Array.from(new Map(suitTiles.map((t) => [t.number, t])).values()).sort(
+      (a, b) => a.number - b.number
+    );
+
+    // Sekuenca pa xhokera
+    for (let i = 0; i < uniqueByNum.length; i++) {
+      let currentRun: RummyTile[] = [uniqueByNum[i]];
+      for (let j = i + 1; j < uniqueByNum.length; j++) {
+        if (uniqueByNum[j].number === currentRun[currentRun.length - 1].number + 1) {
+          currentRun.push(uniqueByNum[j]);
+          if (currentRun.length >= 3) {
+            const v = validateSingleMeld(currentRun);
+            if (v.valid && v.sorted && v.type) {
+              candidates.push({
+                type: v.type,
+                tiles: v.sorted,
+                points: v.points,
+                tileIds: new Set(v.sorted.map((t) => t.id)),
+              });
+            }
+          }
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Sekuenca me As si 14 (10-J-Q-K-A)
+    const hasAce = uniqueByNum.some((t) => t.number === 1);
+    if (hasAce) {
+      const highAceList = uniqueByNum
+        .map((t) => (t.number === 1 ? { ...t, number: 14 } : t))
+        .sort((a, b) => a.number - b.number);
+      for (let i = 0; i < highAceList.length; i++) {
+        let currentRun: RummyTile[] = [highAceList[i]];
+        for (let j = i + 1; j < highAceList.length; j++) {
+          if (highAceList[j].number === currentRun[currentRun.length - 1].number + 1) {
+            currentRun.push(highAceList[j]);
+            if (currentRun.length >= 3) {
+              const v = validateSingleMeld(currentRun);
+              if (v.valid && v.sorted && v.type) {
+                candidates.push({
+                  type: v.type,
+                  tiles: v.sorted,
+                  points: v.points,
+                  tileIds: new Set(v.sorted.map((t) => t.id)),
+                });
+              }
+            }
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    // Sekuenca me Xhoker
+    if (jokers.length >= 1) {
+      for (let i = 0; i < uniqueByNum.length; i++) {
+        for (let j = i + 1; j < uniqueByNum.length; j++) {
+          const pair = [uniqueByNum[i], uniqueByNum[j], jokers[0]];
+          const v = validateSingleMeld(pair);
+          if (v.valid && v.sorted && v.type) {
+            candidates.push({
+              type: v.type,
+              tiles: v.sorted,
+              points: v.points,
+              tileIds: new Set(v.sorted.map((t) => t.id)),
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Zgjedhja e kombinimeve më të mira pa mbivendosje që maksimizojnë pikët
+  candidates.sort((a, b) => b.points - a.points);
+
+  let bestMelds: { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] = [];
+  let bestPoints = 0;
+
+  function search(
+    index: number,
+    currentMelds: typeof candidates,
+    usedIds: Set<string>,
+    currentPts: number
+  ) {
+    if (currentPts > bestPoints) {
+      bestPoints = currentPts;
+      bestMelds = currentMelds.map((m) => ({ type: m.type, tiles: m.tiles, points: m.points }));
+    }
+
+    for (let i = index; i < candidates.length; i++) {
+      const cand = candidates[i];
+      let overlap = false;
+      for (const id of cand.tileIds) {
+        if (usedIds.has(id)) {
+          overlap = true;
+          break;
+        }
+      }
+      if (!overlap) {
+        const nextUsed = new Set(usedIds);
+        cand.tileIds.forEach((id) => nextUsed.add(id));
+        search(i + 1, [...currentMelds, cand], nextUsed, currentPts + cand.points);
+      }
+    }
+  }
+
+  search(0, [], new Set(), 0);
+  return bestMelds;
 }
 
 // Inicializimi i lojës Rummy
@@ -292,7 +470,7 @@ export function initRummyGame(players: { id: string; nickname: string }[]): Rumm
     players: map,
     playerOrder: order,
     currentTurn: order[0],
-    hasDrawn: true, // Lojtari i parë nis me 15 letra, kështu që tashmë ka tërhequr
+    hasDrawn: true,
     lastDrawnTileId: null,
     status: 'playing',
     winnerId: null,
@@ -301,7 +479,7 @@ export function initRummyGame(players: { id: string; nickname: string }[]): Rumm
   };
 }
 
-// Tërheqja e një letre (nga kuverta ose nga letra e hedhur)
+// Tërheqja e një letre
 export function drawRummyTile(
   state: RummyGameState,
   playerId: string,
@@ -314,7 +492,6 @@ export function drawRummyTile(
   const deck = state.deck.slice();
   const discard = state.discardPile.slice();
 
-  // Nëse tërheq nga discard por discard është bosh, merr nga deck
   const drawn = source === 'discard' && discard.length > 0 ? discard.pop() : deck.pop();
   if (!drawn) return state;
 
@@ -332,11 +509,11 @@ export function drawRummyTile(
   };
 }
 
-// Vendos kombinimet e zgjedhura në tavolinë ("Vendos: min 51")
+// Vendos kombinimet në tavolinë ("Vendos: min 51")
 export function playRummyMeld(
   state: RummyGameState,
   playerId: string,
-  tileIds: string[]
+  tileIds?: string[]
 ): { state: RummyGameState; error?: string } {
   if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) {
     return { state, error: 'Tërhiq një letër fillimisht!' };
@@ -344,27 +521,45 @@ export function playRummyMeld(
   const p = state.players[playerId];
   if (!p) return { state };
 
-  const selected = p.hand.filter((t) => tileIds.includes(t.id));
-  const evalRes = evaluateSelectedMelds(selected);
+  let meldsToPlay: { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] = [];
 
-  if (!evalRes.valid || evalRes.melds.length === 0) {
-    return { state, error: 'Kombinim i pavlefshëm! Duhen sekuenca ose grupe me min. 3 letra.' };
+  // Nëse janë dhënë letra konkrete të zgjedhura
+  if (tileIds && tileIds.length > 0) {
+    const selected = p.hand.filter((t) => tileIds.includes(t.id));
+    const evalRes = evaluateSelectedMelds(selected);
+
+    if (!evalRes.valid || evalRes.melds.length === 0) {
+      return { state, error: 'Kombinim i pavlefshëm! Duhen sekuenca ose grupe me min. 3 letra.' };
+    }
+    meldsToPlay = evalRes.melds;
+  } else {
+    // Nëse nuk ka përzgjedhje, gjej automatikisht të gjitha kombinimet e vlefshme nga dora
+    const found = findAllMeldsInHand(p.hand);
+    if (found.length === 0) {
+      return { state, error: 'Nuk u gjet asnjë kombinim i vlefshëm në dorë!' };
+    }
+    meldsToPlay = found;
   }
 
+  const totalPoints = meldsToPlay.reduce((sum, m) => sum + m.points, 0);
+
   // Rregulli: Hapja e parë kërkon të paktën 51 pikë
-  if (!p.hasOpened && evalRes.totalPoints < 51) {
+  if (!p.hasOpened && totalPoints < 51) {
     return {
       state,
-      error: `Kërkohen min. 51 pikë për t'u hapur! Aktualisht ke ${evalRes.totalPoints} pikë.`,
+      error: `Kërkohen min. 51 pikë për t'u hapur! Kombinimet kanë vetëm ${totalPoints} pikë.`,
     };
   }
 
-  const remainingHand = p.hand.filter((t) => !tileIds.includes(t.id));
+  const playedTileIds = new Set(meldsToPlay.flatMap((m) => m.tiles.map((t) => t.id)));
+  const remainingHand = p.hand.filter((t) => !playedTileIds.has(t.id));
+
+  // Duhet të mbetet të paktën 1 letër në dorë për ta hedhur në discard
   if (remainingHand.length === 0) {
-    return { state, error: 'Duhet të të mbetet 1 letër në dorë për ta hedhur në fund!' };
+    return { state, error: 'Duhet të të mbetet të paktën 1 letër në dorë për ta hedhur në fund!' };
   }
 
-  const newMelds: RummyMeld[] = evalRes.melds.map((m, idx) => ({
+  const newMelds: RummyMeld[] = meldsToPlay.map((m, idx) => ({
     id: `m_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
     ownerId: playerId,
     ownerName: p.nickname,
@@ -385,7 +580,7 @@ export function playRummyMeld(
           hasOpened: true,
         },
       },
-      lastActionText: `✨ ${p.nickname} vendosi kombinim (${evalRes.totalPoints} PTS)!`,
+      lastActionText: `✨ ${p.nickname} hapi kombinimet (${totalPoints} PTS)!`,
     },
   };
 }
@@ -450,7 +645,6 @@ export function discardRummyTile(
   const rem = p.hand.filter((t) => t.id !== tileId);
   const nextDisc = [...state.discardPile, tile];
 
-  // Nëse dora mbetet bosh (0 letra), lojtari ka fituar!
   if (rem.length === 0) {
     return {
       ...state,
@@ -492,7 +686,6 @@ export function runBotRummyTurn(state: RummyGameState): RummyGameState {
   const bot = s.players[botId];
   if (!bot || s.status !== 'playing') return s;
 
-  // 1. Tërheq letër nëse nuk ka tërhequr
   if (!s.hasDrawn) {
     s = drawRummyTile(s, botId, 'deck');
   }
@@ -500,15 +693,12 @@ export function runBotRummyTurn(state: RummyGameState): RummyGameState {
   const curBot = s.players[botId];
   if (!curBot) return s;
 
-  // 2. Kërko kombinime të mundshme
-  const runsAndGroups = findPossibleMelds(curBot.hand);
+  const runsAndGroups = findAllMeldsInHand(curBot.hand);
   if (runsAndGroups.length > 0) {
     const totalPts = runsAndGroups.reduce((acc, m) => acc + m.points, 0);
 
-    // Bot vendos nëse tashmë është hapur ose ka >= 51 pikë
     if (curBot.hasOpened || totalPts >= 51) {
       const allMeldTileIds = runsAndGroups.flatMap((m) => m.tiles.map((t) => t.id));
-      // Sigurohu që i mbetet të paktën 1 letër për hedhje
       if (curBot.hand.length - allMeldTileIds.length >= 1) {
         const r = playRummyMeld(s, botId, allMeldTileIds);
         if (!r.error) s = r.state;
@@ -516,7 +706,6 @@ export function runBotRummyTurn(state: RummyGameState): RummyGameState {
     }
   }
 
-  // 3. Zgjidh një letër për ta hedhur (prefero jo-xhoker dhe letrën më pak të lidhur)
   const updatedBot = s.players[botId];
   if (!updatedBot || updatedBot.hand.length === 0) return s;
 
@@ -526,65 +715,4 @@ export function runBotRummyTurn(state: RummyGameState): RummyGameState {
     updatedBot.hand[0];
 
   return drop ? discardRummyTile(s, botId, drop.id) : s;
-}
-
-// Gjetja e të gjitha meldeve nga dora e botit
-function findPossibleMelds(
-  hand: RummyTile[]
-): { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] {
-  const result: { type: 'group' | 'run'; tiles: RummyTile[]; points: number }[] = [];
-  const usedIds = new Set<string>();
-
-  // A. Kërko grupe sipas numrit (3 ose 4 shenja të ndryshme)
-  const byNum: Record<number, RummyTile[]> = {};
-  hand
-    .filter((t) => !t.isJoker)
-    .forEach((t) => {
-      if (!byNum[t.number]) byNum[t.number] = [];
-      if (!byNum[t.number].some((x) => x.suit === t.suit)) byNum[t.number].push(t);
-    });
-
-  for (const grp of Object.values(byNum)) {
-    if (grp.length >= 3) {
-      const v = validateSingleMeld(grp);
-      if (v.valid && v.sorted && v.type) {
-        result.push({ type: v.type, tiles: v.sorted, points: v.points });
-        grp.forEach((t) => usedIds.add(t.id));
-      }
-    }
-  }
-
-  // B. Kërko sekuenca sipas shenjës
-  const remHand = hand.filter((t) => !usedIds.has(t.id) && !t.isJoker);
-  const bySuit: Record<Suit, RummyTile[]> = { hearts: [], diamonds: [], spades: [], clubs: [] };
-  remHand.forEach((t) => bySuit[t.suit].push(t));
-
-  for (const sList of Object.values(bySuit)) {
-    if (sList.length < 3) continue;
-    const sorted = sList.sort((a, b) => a.number - b.number);
-    let run: RummyTile[] = [sorted[0]];
-
-    for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i].number === sorted[i - 1].number + 1) {
-        run.push(sorted[i]);
-      } else {
-        if (run.length >= 3) {
-          const v = validateSingleMeld(run);
-          if (v.valid && v.sorted && v.type) {
-            result.push({ type: v.type, tiles: v.sorted, points: v.points });
-            run.forEach((t) => usedIds.add(t.id));
-          }
-        }
-        run = [sorted[i]];
-      }
-    }
-    if (run.length >= 3) {
-      const v = validateSingleMeld(run);
-      if (v.valid && v.sorted && v.type) {
-        result.push({ type: v.type, tiles: v.sorted, points: v.points });
-      }
-    }
-  }
-
-  return result;
 }

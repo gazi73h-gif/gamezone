@@ -4,13 +4,13 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   BOT_RUMMY_ID,
   RummyGameState,
-  RummyMeld,
   RummyTile,
   Suit,
   addToRummyMeld,
   discardRummyTile,
   drawRummyTile,
   evaluateSelectedMelds,
+  findAllMeldsInHand,
   getPlayerMeldPoints,
   playRummyMeld,
   runBotRummyTurn,
@@ -26,6 +26,7 @@ import {
   X,
   Crown,
   Info,
+  Sparkles,
 } from 'lucide-react';
 
 interface RummyGameProps {
@@ -80,7 +81,6 @@ function CardItem({
 }) {
   const suitInfo = SUIT_DISPLAY[tile.suit || 'spades'];
 
-  // Madhësitë e kartës sipas kontekstit
   const sizeClasses = horizontal
     ? 'w-[72px] h-[50px] sm:w-[86px] sm:h-[60px]'
     : small
@@ -96,7 +96,9 @@ function CardItem({
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={`relative select-none rounded-[8px] sm:rounded-[10px] bg-[#fdfbf7] border border-[#d5ccbd] shadow-[0_4px_10px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer shrink-0 flex flex-col justify-between p-1 sm:p-1.5 ${sizeClasses} ${
-        selected ? '-translate-y-5 ring-2 ring-amber-400 shadow-[0_12px_24px_rgba(251,191,36,0.5)] z-30' : ''
+        selected
+          ? '-translate-y-5 ring-2 ring-amber-400 shadow-[0_12px_24px_rgba(251,191,36,0.5)] z-30'
+          : ''
       } ${
         isNew
           ? 'ring-2 ring-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]'
@@ -106,10 +108,11 @@ function CardItem({
       {tile.isJoker ? (
         <div className="w-full h-full rounded-[6px] border border-amber-400/60 bg-gradient-to-b from-amber-50 to-amber-100/60 flex flex-col items-center justify-center">
           <Crown className={small ? 'w-3 h-3 text-amber-600' : 'w-4 h-4 sm:w-5 sm:h-5 text-amber-600'} />
-          <span className="text-[9px] sm:text-[10px] font-black tracking-tight text-amber-900 font-serif">JOL</span>
+          <span className="text-[9px] sm:text-[10px] font-black tracking-tight text-amber-900 font-serif">
+            JOL
+          </span>
         </div>
       ) : horizontal ? (
-        // Rasti i letrës së kthyer horizontalisht (Starter / Cut Card si në pamje)
         <div className="w-full h-full flex items-center justify-between px-1">
           <div className={`flex flex-col items-center leading-none font-black text-xs sm:text-sm ${suitInfo.color}`}>
             <span>{cardRank(tile.number)}</span>
@@ -118,7 +121,6 @@ function CardItem({
           <div className={`leading-none text-xl sm:text-2xl ${suitInfo.color}`}>{suitInfo.sym}</div>
         </div>
       ) : (
-        // Letër standarde vertikale
         <>
           <div className={`flex flex-col items-start leading-none font-black ${suitInfo.color}`}>
             <span className={small ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm md:text-base'}>
@@ -162,7 +164,6 @@ export default function RummyGame({
   const isMyTurn = gameState.status === 'playing' && gameState.currentTurn === currentPlayerId;
   const me = gameState.players[currentPlayerId];
 
-  // Identifiko lojtarin kundërshtar kryesor (ose botin)
   const opponentId = gameState.playerOrder.find((id) => id !== currentPlayerId) || BOT_RUMMY_ID;
   const opponent = gameState.players[opponentId];
 
@@ -170,7 +171,17 @@ export default function RummyGame({
   const myPoints = me ? getPlayerMeldPoints(gameState, currentPlayerId) : 0;
   const opponentPoints = opponent ? getPlayerMeldPoints(gameState, opponentId) : 0;
 
-  // Llogaritja dinamike e pikëve të kartave të zgjedhura
+  // 1. Llogaritja e kombinimeve të mundshme në të gjithë dorën
+  const handMelds = useMemo(() => {
+    if (!me) return [];
+    return findAllMeldsInHand(me.hand);
+  }, [me]);
+
+  const handMeldPoints = useMemo(() => {
+    return handMelds.reduce((sum, m) => sum + m.points, 0);
+  }, [handMelds]);
+
+  // 2. Llogaritja e kartave të zgjedhura manualisht
   const selectedTiles = useMemo(() => {
     if (!me) return [];
     return me.hand.filter((t) => selectedIds.includes(t.id));
@@ -179,6 +190,24 @@ export default function RummyGame({
   const selectedEval = useMemo(() => {
     return evaluateSelectedMelds(selectedTiles);
   }, [selectedTiles]);
+
+  // Përcaktimi nëse lojtari mund të hapet tani
+  const canOpenWithSelected =
+    selectedIds.length >= 3 &&
+    selectedEval.valid &&
+    (me?.hasOpened || selectedEval.totalPoints >= 51);
+
+  const canOpenWithHand = !me?.hasOpened ? handMeldPoints >= 51 : handMelds.length > 0;
+
+  const canOpen = isMyTurn && gameState.hasDrawn && (canOpenWithSelected || canOpenWithHand);
+
+  // Pikët që shfaqen në butonin "Vendos: min 51 — ke X"
+  const displayPoints =
+    selectedIds.length > 0
+      ? selectedEval.valid
+        ? selectedEval.totalPoints
+        : 0
+      : handMeldPoints;
 
   // Regjistro fitoren në Supabase
   useEffect(() => {
@@ -204,11 +233,10 @@ export default function RummyGame({
   // Pastrim mesazhi gabimi pas disa sekondash
   useEffect(() => {
     if (!errorToast) return;
-    const t = setTimeout(() => setErrorToast(''), 3000);
+    const t = setTimeout(() => setErrorToast(''), 3200);
     return () => clearTimeout(t);
   }, [errorToast]);
 
-  // Siguro renditjen lokale të dorës
   const ensureOrder = (tiles: RummyTile[]) => {
     const ids = tiles.map((t) => t.id);
     const base = localOrder.filter((id) => ids.includes(id));
@@ -226,7 +254,6 @@ export default function RummyGame({
       })
     : [];
 
-  // Ndërrimi i pozicionit me tërheqje (Drag & Drop)
   const handleDrop = (targetId: string) => {
     if (!me || !dragId || dragId === targetId) return;
     const ord = ensureOrder(me.hand);
@@ -239,13 +266,11 @@ export default function RummyGame({
     setDragId(null);
   };
 
-  // Përzgjedhja e letrave
   const toggleSelect = (id: string) => {
     setErrorToast('');
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // Butoni "Rendit" (Cikli mes renditjes sipas shenjave/sekuencave dhe numrave/grupeve)
   const [sortMode, setSortMode] = useState<'run' | 'group'>('run');
   const handleSort = () => {
     if (!me) return;
@@ -273,7 +298,6 @@ export default function RummyGame({
     }
   };
 
-  // Veprimi i tërheqjes së letrës ("Tërhiq")
   const handleDraw = async (src: 'deck' | 'discard') => {
     if (!isMyTurn) {
       setErrorToast('Nuk është radha jote!');
@@ -287,31 +311,56 @@ export default function RummyGame({
     await onUpdateState(drawRummyTile(gameState, currentPlayerId, src));
   };
 
-  // Veprimi i vendosjes së kombinimeve ("Vendos: min 51")
+  // Veprimi i hapjes së letrave ("Vendos: min 51")
   const handlePlayMeld = async () => {
     if (!isMyTurn) {
       setErrorToast('Nuk është radha jote!');
       return;
     }
     if (!gameState.hasDrawn) {
-      setErrorToast('Tërhiq një letër fillimisht!');
-      return;
-    }
-    if (selectedIds.length === 0) {
-      setErrorToast('Zgjidh letrat për kombinim!');
+      setErrorToast('Tërhiq një letër fillimisht para se të hapesh!');
       return;
     }
 
-    const r = playRummyMeld(gameState, currentPlayerId, selectedIds);
-    if (r.error) {
-      setErrorToast(r.error);
+    // Nëse ka zgjedhur letra manualisht dhe ato janë të vlefshme
+    if (selectedIds.length >= 3 && selectedEval.valid) {
+      if (!me?.hasOpened && selectedEval.totalPoints < 51) {
+        setErrorToast(
+          `Kërkohen min. 51 pikë për t'u hapur! Këto letra kanë ${selectedEval.totalPoints} pikë.`
+        );
+        return;
+      }
+      const r = playRummyMeld(gameState, currentPlayerId, selectedIds);
+      if (r.error) {
+        setErrorToast(r.error);
+        return;
+      }
+      setSelectedIds([]);
+      await onUpdateState(r.state);
       return;
     }
-    setSelectedIds([]);
-    await onUpdateState(r.state);
+
+    // Nëse nuk ka përzgjedhur manualisht por dora ka kombinime të mjaftueshme
+    if (canOpenWithHand) {
+      const r = playRummyMeld(gameState, currentPlayerId);
+      if (r.error) {
+        setErrorToast(r.error);
+        return;
+      }
+      setSelectedIds([]);
+      await onUpdateState(r.state);
+      return;
+    }
+
+    if (selectedIds.length > 0 && !selectedEval.valid) {
+      setErrorToast('Kombinimi i përzgjedhur nuk është i vlefshëm!');
+    } else if (!me?.hasOpened) {
+      setErrorToast(`Duhen të paktën 51 pikë për hapjen e parë! Aktualisht ke ${displayPoints} pikë.`);
+    } else {
+      setErrorToast('Zgjidh kombinimin me min. 3 letra për ta vendosur në tavolinë!');
+    }
   };
 
-  // Shto letra në një kombinim ekzistues në tavolinë
   const handleAttachToMeld = async (meldId: string) => {
     if (!isMyTurn || selectedIds.length === 0) return;
     const r = addToRummyMeld(gameState, currentPlayerId, selectedIds, meldId);
@@ -323,7 +372,6 @@ export default function RummyGame({
     await onUpdateState(r.state);
   };
 
-  // Veprimi i hedhjes së letrës ("Hidh")
   const handleDiscard = async (specificTileId?: string) => {
     if (!isMyTurn) {
       setErrorToast('Nuk është radha jote!');
@@ -336,7 +384,7 @@ export default function RummyGame({
 
     const tileIdToDiscard = specificTileId || (selectedIds.length === 1 ? selectedIds[0] : null);
     if (!tileIdToDiscard) {
-      setErrorToast('Zgjidh saktësisht 1 letër për ta hedhur në pirg!');
+      setErrorToast('Zgjidh saktësisht 1 letër për ta hedhur!');
       return;
     }
 
@@ -344,22 +392,23 @@ export default function RummyGame({
     await onUpdateState(discardRummyTile(gameState, currentPlayerId, tileIdToDiscard));
   };
 
-  // Reagime emoji
   const sendEmojiReaction = (emoji: string) => {
     setActiveReaction(emoji);
     setShowEmojiPicker(false);
     setTimeout(() => setActiveReaction(null), 2500);
   };
 
-  const topDiscard = gameState.discardPile.length > 0 ? gameState.discardPile[gameState.discardPile.length - 1] : null;
+  const topDiscard =
+    gameState.discardPile.length > 0
+      ? gameState.discardPile[gameState.discardPile.length - 1]
+      : null;
 
-  // Ndarja e meldeve sipas lojtarëve
   const opponentMelds = gameState.melds.filter((m) => m.ownerId === opponentId);
   const myMelds = gameState.melds.filter((m) => m.ownerId === currentPlayerId);
 
   return (
     <div className="relative w-full min-h-[600px] sm:min-h-[720px] bg-[#080d12] flex flex-col items-center justify-between p-2 sm:p-4 select-none font-sans overflow-hidden">
-      {/* Njoftim me Toast lart */}
+      {/* Toast njoftimi */}
       {errorToast && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#1c1214] border border-red-500/80 text-red-200 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-2xl flex items-center gap-2 animate-bounce">
           <Info className="w-4 h-4 text-red-400" />
@@ -367,19 +416,18 @@ export default function RummyGame({
         </div>
       )}
 
-      {/* Reagimi me emoji në ekran */}
+      {/* Reagimi me emoji */}
       {activeReaction && (
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 text-5xl sm:text-6xl animate-ping duration-1000">
           {activeReaction}
         </div>
       )}
 
-      {/* Tavolina e gjelbër/errët me skicë floriri si në fotot bashkangjitur */}
+      {/* Tavolina kryesore */}
       <div className="relative w-full max-w-[1100px] flex-1 bg-gradient-to-b from-[#0e1620] via-[#0b1118] to-[#070b10] border-[1.5px] border-[#c59a3f]/40 rounded-[32px] sm:rounded-[48px] shadow-[0_0_50px_rgba(0,0,0,0.85)] flex flex-col justify-between p-3 sm:p-6 overflow-hidden">
         
         {/* ===================== SHIRITI I SIPËRM ===================== */}
         <div className="w-full flex items-center justify-between relative z-20">
-          {/* Butoni Kthehu / Dil në të majtë */}
           <button
             type="button"
             onClick={onLeaveRoom}
@@ -389,15 +437,13 @@ export default function RummyGame({
             <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
           </button>
 
-          {/* Kuti / Badge i Lojtarit të sipërm (Kundërshtari / sabajdin) */}
+          {/* Kuti / Badge i kundërshtarit (sabajdin) */}
           {opponent && (
             <div className="absolute left-1/2 -translate-x-1/2 top-0 bg-[#111822] border border-[#c59a3f]/70 px-3.5 sm:px-4 py-1.5 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-lg">
-              {/* Rrethi me Inicialet */}
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1b2533] border border-[#c59a3f]/40 flex items-center justify-center text-[#d4af37] text-xs font-bold">
                 {opponent.nickname.slice(0, 2).toUpperCase()}
               </div>
 
-              {/* Emri dhe Detajet */}
               <div className="flex flex-col">
                 <div className="flex items-center gap-1">
                   <span className="text-white text-xs sm:text-sm font-bold tracking-tight">
@@ -417,7 +463,7 @@ export default function RummyGame({
             </div>
           )}
 
-          {/* Pikët e kundërshtarit (57 PTS lart djathtas si në Image 003) */}
+          {/* Pikët e kundërshtarit në flori (57 PTS si në Image 003) */}
           <div className="flex flex-col items-end">
             {opponentPoints > 0 && (
               <span className="text-[#d4af37] font-extrabold text-sm sm:text-base tracking-wider drop-shadow-md">
@@ -427,7 +473,7 @@ export default function RummyGame({
           </div>
         </div>
 
-        {/* Meldet e kundërshtarit në këndin e sipërm djathtas (si në Image 003) */}
+        {/* Meldet e kundërshtarit lart djathtas */}
         {opponentMelds.length > 0 && (
           <div className="w-full flex justify-end pr-2 pt-2 gap-3 z-10">
             <div className="flex flex-col items-end gap-2 bg-black/20 p-2 rounded-2xl border border-[#c59a3f]/20">
@@ -436,7 +482,9 @@ export default function RummyGame({
                   key={meld.id}
                   onClick={() => handleAttachToMeld(meld.id)}
                   className={`flex items-center -space-x-4 sm:-space-x-5 transition ${
-                    isMyTurn && selectedIds.length > 0 ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5' : ''
+                    isMyTurn && selectedIds.length > 0
+                      ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5'
+                      : ''
                   }`}
                   title="Kliko për të shtuar letra"
                 >
@@ -449,11 +497,10 @@ export default function RummyGame({
           </div>
         )}
 
-        {/* ===================== ZONA QENDRORE E TAVOLINËS ===================== */}
-        <div className="relative my-auto flex flex-col items-center justify-center py-4 w-full z-10">
-          {/* Pirgu i kuvertës (JOL), letra horizontale, dhe pirgu i hedhjes */}
+        {/* ===================== ZONA QENDRORE ===================== */}
+        <div className="relative my-auto flex flex-col items-center justify-center py-3 w-full z-10">
           <div className="flex items-center justify-center gap-3 sm:gap-5 mb-3">
-            {/* 1. Pirgu i kuvertës (Deck - JOL) */}
+            {/* Kuverta JOL */}
             <div className="flex flex-col items-center gap-1.5">
               <div
                 onClick={() => handleDraw('deck')}
@@ -464,27 +511,25 @@ export default function RummyGame({
                 }`}
                 title="Tërhiq letër nga kuverta"
               >
-                {/* Efekti i letrës së dytë poshtë për efekt 3D */}
                 <div className="absolute -bottom-1 -right-1 w-full h-full rounded-[10px] bg-[#0e1620] border border-[#c59a3f]/40 -z-10" />
                 <span className="text-[#c59a3f]/40 text-lg sm:text-xl">♠</span>
                 <span className="text-[#d4af37] font-serif italic font-bold text-xs sm:text-sm tracking-wider">
                   JOL
                 </span>
               </div>
-              {/* Numri i letrave të mbetura në kuvertë */}
               <div className="bg-[#0b1017] border border-[#c59a3f]/60 px-2 py-0.5 rounded-full text-[#d4af37] text-[10px] font-bold shadow">
                 {gameState.deck.length}
               </div>
             </div>
 
-            {/* 2. Karta e hapur horizontale (Starter / Cut card si në foto) */}
+            {/* Karta e hapur horizontale */}
             {gameState.starterCard && (
               <div className="flex items-center justify-center">
                 <CardItem tile={gameState.starterCard} horizontal />
               </div>
             )}
 
-            {/* 3. Vendi i kartave të hedhura (Discard slot) */}
+            {/* Vendi i letrave të hedhura */}
             <div className="flex items-center justify-center">
               {topDiscard ? (
                 <div
@@ -529,55 +574,58 @@ export default function RummyGame({
             </div>
           </div>
 
-          {/* Teksti udhëzues i radhës (Pill në qendër si në Image 050: "Radha jote — tërhiq") */}
+          {/* Teksti udhëzues i radhës */}
           <div className="bg-[#0d141d] border border-[#c59a3f]/70 px-4 sm:px-6 py-1.5 rounded-full shadow-lg">
             <span className="text-[#d4af37] text-xs sm:text-sm font-semibold tracking-wide">
               {isMyTurn
                 ? !gameState.hasDrawn
                   ? 'Radha jote — tërhiq'
+                  : canOpen
+                  ? `Radha jote — mund të hapesh (${displayPoints} pikë)!`
                   : 'Radha jote — vendos ose hidh'
                 : `Radha e ${gameState.players[gameState.currentTurn]?.nickname || 'kundërshtarit'}`}
             </span>
           </div>
 
-          {/* Butoni / Statusi i vendosjes në të djathtë (Image 050: "Vendos: min 51 — ke X") */}
-          <div className="w-full flex justify-end pr-2 sm:pr-8 mt-2 sm:mt-0">
+          {/* Butoni "Meld / Open Hand" (Vendos: min 51) - Aktiv vetëm kur arrihen 51+ pikë */}
+          <div className="w-full flex justify-end pr-2 sm:pr-8 mt-2 sm:mt-1">
             <button
               type="button"
               onClick={handlePlayMeld}
-              disabled={!isMyTurn || !gameState.hasDrawn || selectedIds.length < 3}
-              className={`bg-[#0d141e] border-2 border-[#c59a3f] px-4 sm:px-6 py-2 rounded-2xl text-white font-bold text-xs sm:text-sm shadow-xl transition-all ${
-                isMyTurn &&
-                gameState.hasDrawn &&
-                (me?.hasOpened || selectedEval.totalPoints >= 51) &&
-                selectedEval.valid
-                  ? 'ring-2 ring-amber-400 hover:scale-105 cursor-pointer bg-amber-500/10'
-                  : 'opacity-85 hover:border-amber-300'
+              disabled={!canOpen}
+              aria-label="Meld / Open Hand"
+              className={`border-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-xl transition-all ${
+                canOpen
+                  ? 'border-amber-400 bg-amber-500/25 text-amber-200 ring-4 ring-amber-400/60 shadow-[0_0_25px_rgba(251,191,36,0.5)] animate-pulse hover:scale-105 cursor-pointer'
+                  : 'border-slate-800 bg-[#0d141e]/80 text-slate-500 opacity-60 cursor-not-allowed'
               }`}
             >
-              {me?.hasOpened
-                ? `Vendos${selectedEval.totalPoints > 0 ? ` — ke ${selectedEval.totalPoints}` : ''}`
-                : `Vendos: min 51 — ke ${selectedEval.totalPoints}`}
+              {canOpen
+                ? me?.hasOpened
+                  ? `✨ Vendos / Meld (${displayPoints} PTS)`
+                  : `✨ Hap Letrat / Meld (${displayPoints} PTS)`
+                : me?.hasOpened
+                ? `Vendos / Meld${displayPoints > 0 ? ` — ke ${displayPoints}` : ''}`
+                : `Vendos / Meld: min 51 — ke ${displayPoints}`}
             </button>
           </div>
         </div>
 
-        {/* Meldet e mia të hapura në tavolinë (si në Image 003: 81 PTS në të majtë) */}
+        {/* Meldet e mia të vendosura në tavolinë (81 PTS si në Image 003) */}
         {myMelds.length > 0 && (
           <div className="w-full flex items-center gap-4 px-2 py-2 mb-2 bg-black/15 rounded-2xl border border-[#c59a3f]/20 z-10 overflow-x-auto">
-            {/* Pikët e mia (81 PTS si në Image 003) */}
             <div className="text-[#d4af37] font-extrabold text-sm sm:text-base tracking-wider shrink-0 pl-1">
               {myPoints} PTS
             </div>
-
-            {/* Grupet e meldeve të vendosura */}
             <div className="flex items-center gap-3 overflow-x-auto py-1">
               {myMelds.map((meld) => (
                 <div
                   key={meld.id}
                   onClick={() => handleAttachToMeld(meld.id)}
                   className={`flex items-center -space-x-4 sm:-space-x-5 transition shrink-0 ${
-                    isMyTurn && selectedIds.length > 0 ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5' : ''
+                    isMyTurn && selectedIds.length > 0
+                      ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5'
+                      : ''
                   }`}
                   title="Kliko për të shtuar letra"
                 >
@@ -590,11 +638,21 @@ export default function RummyGame({
           </div>
         )}
 
-        {/* ===================== SHIRITI I POSHTËM (DORA E LOJTARIT DHE KONTROLLET) ===================== */}
-        <div className="w-full flex items-end justify-between relative z-20 pt-2">
-          {/* Ikonat në të majtë: Emoji 😊 dhe Statistikat 📊 (si në pamje) */}
+        {/* Njoftim ndihmës kur bëhen 51 pikë */}
+        {isMyTurn && gameState.hasDrawn && canOpen && !me?.hasOpened && (
+          <div
+            onClick={handlePlayMeld}
+            className="w-full max-w-md mx-auto my-1 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/70 py-1.5 px-3 rounded-full text-center text-[#fbbf24] text-xs font-bold shadow-lg cursor-pointer hover:scale-102 transition flex items-center justify-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Ke {displayPoints} pikë! Kliko këtu ose te &quot;Hap Letrat / Meld&quot; për t&apos;i hapur letrat.</span>
+          </div>
+        )}
+
+        {/* ===================== SHIRITI I POSHTËM (DORA & KONTROLLET) ===================== */}
+        <div className="w-full flex items-end justify-between relative z-20 pt-1">
+          {/* Ikonat majtas: Emoji dhe Statistikat */}
           <div className="flex flex-col gap-2 shrink-0 pb-1">
-            {/* Butoni Emoji */}
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -604,7 +662,6 @@ export default function RummyGame({
               <Smile className="w-5 h-5" />
             </button>
 
-            {/* Butoni Statistikat */}
             <button
               type="button"
               onClick={() => setShowStatsModal(true)}
@@ -615,7 +672,7 @@ export default function RummyGame({
             </button>
           </div>
 
-          {/* Dora e lojtarit (Letrat e hapura fanning / overlapping në fund) */}
+          {/* Dora e plotë e lojtarit */}
           <div className="flex-1 flex justify-center items-end px-1 sm:px-3 overflow-x-auto min-h-[90px] sm:min-h-[110px] pb-1">
             <div className="flex items-end -space-x-4 sm:-space-x-6 md:-space-x-7 pt-5">
               {hand.map((tile) => (
@@ -639,9 +696,8 @@ export default function RummyGame({
             </div>
           </div>
 
-          {/* Butonat në të djathtë: Rendit dhe Hidh */}
+          {/* Butonat djathtas: Hidh dhe Rendit */}
           <div className="flex flex-col items-end gap-2 shrink-0 pb-1">
-            {/* Butoni Hidh (shfaqet kur një letër është e përzgjedhur për lehtësi) */}
             {isMyTurn && gameState.hasDrawn && selectedIds.length === 1 && (
               <button
                 type="button"
@@ -652,7 +708,6 @@ export default function RummyGame({
               </button>
             )}
 
-            {/* Butoni "Rendit" (si në pamje me ikonën e listës) */}
             <button
               type="button"
               onClick={handleSort}
@@ -666,7 +721,7 @@ export default function RummyGame({
         </div>
       </div>
 
-      {/* ===================== MODALI I EMOJIVE ===================== */}
+      {/* Modali i Emojive */}
       {showEmojiPicker && (
         <div className="absolute bottom-20 left-6 z-50 bg-[#121922] border border-[#c59a3f] p-3 rounded-2xl shadow-2xl flex gap-2">
           {['😂', '👍', '🔥', '👏', '🍀', '👑', '😎', '🤐'].map((emoji) => (
@@ -681,7 +736,7 @@ export default function RummyGame({
         </div>
       )}
 
-      {/* ===================== MODALI I STATISTIKAVE DHE RREGULLAVE ===================== */}
+      {/* Modali i Statistikave dhe Rregullave */}
       {showStatsModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0f1722] border border-[#c59a3f] rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl text-white">
@@ -698,7 +753,6 @@ export default function RummyGame({
               </button>
             </div>
 
-            {/* Lista e lojtarëve */}
             <div className="py-4 space-y-2">
               <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-1">
                 Lojtarët në tavolinë
@@ -711,7 +765,9 @@ export default function RummyGame({
                   <div
                     key={id}
                     className={`flex items-center justify-between p-2.5 rounded-xl border ${
-                      isCurrent ? 'bg-amber-500/10 border-amber-400/50' : 'bg-slate-900/60 border-slate-800'
+                      isCurrent
+                        ? 'bg-amber-500/10 border-amber-400/50'
+                        : 'bg-slate-900/60 border-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -729,10 +785,10 @@ export default function RummyGame({
               })}
             </div>
 
-            {/* Rregullat e shpejta */}
             <div className="bg-black/30 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1">
               <div className="font-bold text-[#d4af37] text-xs mb-1">Rregullat e Remi 51 (JOL):</div>
               <p>• Hapja e parë kërkon të paktën 51 pikë në sekuenca ose grupe.</p>
+              <p>• Sapo dora arrin 51 pikë, butoni &quot;Vendos&quot; aktivizohet për t&apos;i hapur letrat në tavolinë.</p>
               <p>• Kartat JOL (Xhoker) zëvendësojnë çdo letër në kombinim.</p>
               <p>• Pasi të hapesh, mund të shtosh letra te kombinimet ekzistuese në tavolinë.</p>
               <p>• Çdo radhë nis me tërheqje dhe përfundon me hedhjen e 1 letre.</p>
@@ -741,7 +797,7 @@ export default function RummyGame({
         </div>
       )}
 
-      {/* ===================== MODALI I FITORES ===================== */}
+      {/* Modali i Fitores */}
       {gameState.status === 'finished' && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0f1722] border-2 border-[#c59a3f] rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-[0_0_50px_rgba(212,175,55,0.4)] animate-in fade-in zoom-in duration-300">
