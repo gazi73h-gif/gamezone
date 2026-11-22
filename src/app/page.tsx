@@ -41,7 +41,7 @@ const GAMES: GameInfo[] = [
   {
     id: 'shah',
     title: 'Shah (Chess)',
-    subtitle: 'Vizato fjalën dhe gjeje në chat',
+    subtitle: 'Shah fjalën dhe gjeje në chat',
     players: '2 - 8 Lojtarë',
     icon: <Palette className="w-8 h-8" />,
     color: 'from-pink-500 to-rose-600',
