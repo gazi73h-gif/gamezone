@@ -1,22 +1,13 @@
 ﻿'use client';
 
 import React, { useState, useRef } from 'react';
-import { Radio, Play, Square, SkipForward } from 'lucide-react';
-
-const STATIONS = [
-  { name: 'Radio Shqip 92.0', url: 'https://cp1.sednastream.com/proxy/radioshqip?mp=/stream' },
-  { name: 'Chill Lounge (SomaFM)', url: 'https://somafm.com' },
-  { name: 'Radio Dukagjini', url: 'https://s2.voscast.com:8825/radiodukagjini' },
-];
+import { Radio, Play, Square } from 'lucide-react';
 
 export default function RadioPlayer() {
-  const [stationIndex, setStationIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const currentStation = STATIONS[stationIndex];
 
   const handleToggle = async () => {
     const audio = audioRef.current;
@@ -29,7 +20,6 @@ export default function RadioPlayer() {
     } else {
       setIsLoading(true);
       try {
-        audio.src = currentStation.url;
         audio.load();
         await audio.play();
         setIsPlaying(true);
@@ -42,30 +32,11 @@ export default function RadioPlayer() {
     }
   };
 
-  const handleNextStation = async () => {
-    const nextIdx = (stationIndex + 1) % STATIONS.length;
-    setStationIndex(nextIdx);
-    setErrorMsg('');
-    const audio = audioRef.current;
-    if (audio && isPlaying) {
-      setIsLoading(true);
-      try {
-        audio.src = STATIONS[nextIdx].url;
-        audio.load();
-        await audio.play();
-      } catch {
-        setIsPlaying(false);
-        setErrorMsg('S’u lidh');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
   return (
-    <div className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5">
+    <div className="fixed bottom-3 right-3 z-50">
       <audio
         ref={audioRef}
+        src="https://sednastream.com"
         preload="none"
         onPlaying={() => {
           setIsPlaying(true);
@@ -93,24 +64,16 @@ export default function RadioPlayer() {
           {isLoading
             ? 'Duke u lidhur...'
             : errorMsg
-            ? `${currentStation.name} (${errorMsg})`
+            ? `Radio Shqip (${errorMsg})`
             : isPlaying
-            ? `${currentStation.name}`
-            : `${currentStation.name}`}
+            ? 'Radio Shqip (Ndalo)'
+            : 'Radio Shqip Live'}
         </span>
         {isPlaying ? (
           <Square className="w-3.5 h-3.5 fill-current" />
         ) : (
           <Play className="w-3.5 h-3.5 fill-current text-emerald-400" />
         )}
-      </button>
-
-      <button
-        onClick={handleNextStation}
-        title="Ndërro stacionin"
-        className="p-2.5 rounded-full bg-slate-900/95 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-2xl transition cursor-pointer"
-      >
-        <SkipForward className="w-3.5 h-3.5" />
       </button>
     </div>
   );
