@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
  import { 
   Dices, Spade, Crown, Layers, Compass, LayoutGrid, 
   Coins, Gift, Users, Play, LogIn, Sparkles, Gamepad2, Radio 
-} , Crown } from 'lucide-react';
+} from 'lucide-react';
 
 interface GameInfo {
   id: string;

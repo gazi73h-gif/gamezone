@@ -122,9 +122,9 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
 
   if (!anyMove) {
     if (check) {
-      return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: activeId, winnerName: moverName, inCheck: nextTurn, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->], capturedByWhite: capW, capturedByBlack: capB, lastActionText: `👑 SHAH-MAT! Fiton ${moverName}!` };
+      return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: activeId, winnerName: moverName, inCheck: nextTurn, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), `${piece.type.toUpperCase()}:`], capturedByWhite: capW, capturedByBlack: capB, lastActionText: `👑 SHAH-MAT! Fiton ${moverName}!` };
     }
-    return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: null, winnerName: 'Barazim (Pat)', inCheck: null, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->], capturedByWhite: capW, capturedByBlack: capB, lastActionText: '🤝 Loja mbyllur në barazim (Pat)!' };
+    return { ...state, board: nextBoard, turn: nextTurn, status: 'finished', winnerId: null, winnerName: 'Barazim (Pat)', inCheck: null, lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), `${piece.type.toUpperCase()}:`], capturedByWhite: capW, capturedByBlack: capB, lastActionText: '🤝 Loja mbyllur në barazim (Pat)!' };
   }
 
   return {
@@ -132,7 +132,7 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
     board: nextBoard,
     turn: nextTurn,
     inCheck: check ? nextTurn : null,
-    lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), ${piece.type.toUpperCase()}:->],
+    lastMove: { from, to }, prevBoard: state.board, moveHistory: [...(state.moveHistory || []), `${piece.type.toUpperCase()}:`],
     capturedByWhite: capW,
     capturedByBlack: capB,
     lastActionText: check ? `⚠️ SHAH! Kujdes ${nextName}!` : `Radha e ${nextName} (${nextTurn === 'w' ? 'Të Bardhat' : 'Të Zezat'}).`,
