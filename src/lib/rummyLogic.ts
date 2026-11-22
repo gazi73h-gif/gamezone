@@ -13,6 +13,7 @@ export interface RummyGameState {
   playerOrder: string[];
   currentTurn: string;
   hasDrawn: boolean;
+  lastDrawnTileId?: string | null;
   status: 'playing' | 'finished';
   winnerId: string | null;
   winnerName: string | null;
@@ -104,6 +105,7 @@ export function initRummyGame(players: { id: string; nickname: string }[]): Rumm
     playerOrder: order,
     currentTurn: order.at(0)!,
     hasDrawn: true,
+    lastDrawnTileId: drawn.id,
     status: 'playing',
     winnerId: null,
     winnerName: null,
@@ -127,6 +129,7 @@ export function drawRummyTile(state: RummyGameState, playerId: string, source: '
     deck,
     discardPile: discard,
     hasDrawn: true,
+    lastDrawnTileId: drawn.id,
     players: { ...state.players, [playerId]: { ...p, hand: p.hand.concat(drawn) } },
     lastActionText: `${p.nickname} tërhoqi një gur ${source === 'discard' ? 'nga hedhja' : 'nga pakoja'}.`,
   };
@@ -200,6 +203,7 @@ export function discardRummyTile(state: RummyGameState, playerId: string, tileId
     players: { ...state.players, [playerId]: { ...p, hand: remHand } },
     currentTurn: nextId,
     hasDrawn: false,
+    lastDrawnTileId: null,
     lastActionText: `${p.nickname} hodhi ${tile.isJoker ? 'Xholin' : tile.number}. Radha e ${state.players[nextId]?.nickname}!`,
   };
 }

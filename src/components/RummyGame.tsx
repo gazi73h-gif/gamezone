@@ -26,10 +26,10 @@ function playTileSound(kind: 'draw' | 'meld' | 'win') {
   } catch {}
 }
 
-function Tile3D({ tile, selected, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
+function Tile3D({ tile, selected, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
   const c = TILE_COLOR[tile.color];
   return (
-    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl bg-gradient-to-b from-[#fffdf7] via-[#f7edd8] to-[#e2cfa8] border border-amber-200 flex flex-col items-center justify-between transition-all ${small ? 'w-8 h-11 sm:w-9 sm:h-12 p-1 shadow-[0_3px_0_#9c7a49,0_5px_8px_rgba(0,0,0,0.5)]' : 'w-11 h-16 sm:w-12 sm:h-[68px] p-1.5 shadow-[0_5px_0_#9c7a49,0_8px_14px_rgba(0,0,0,0.65)] cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-[0_8px_0_#d97706,0_14px_20px_rgba(0,0,0,0.8)] z-20' : ''}`}>
+    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl bg-gradient-to-b from-[#fffdf7] via-[#f7edd8] to-[#e2cfa8] border border-amber-200 flex flex-col items-center justify-between transition-all ${small ? 'w-8 h-11 sm:w-9 sm:h-12 p-1 shadow-[0_3px_0_#9c7a49,0_5px_8px_rgba(0,0,0,0.5)]' : 'w-11 h-16 sm:w-12 sm:h-[68px] p-1.5 shadow-[0_5px_0_#9c7a49,0_8px_14px_rgba(0,0,0,0.65)] cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-[0_8px_0_#d97706,0_14px_20px_rgba(0,0,0,0.8)] z-20' : isNew ? 'ring-2 ring-emerald-400 bg-gradient-to-b from-emerald-50 via-[#efe3c8] to-[#cbb589] shadow-[0_5px_0_#6b5331,0_0_15px_rgba(52,211,153,0.45)]' : ''}`}>
             {tile.isJoker ? (
         <div className="flex flex-col items-center justify-center h-full text-amber-500">
           <Crown className={small ? 'w-4 h-4 fill-amber-400' : 'w-6 h-6 fill-amber-400'} />
@@ -203,7 +203,7 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
           </div>
 
           <div className="bg-black/30 p-3 rounded-2xl border-t-4 border-b-4 border-[#361c0c] shadow-inner flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 min-h-[84px]">
-            {hand.map((tile) => (<Tile3D key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} onClick={() => toggleSelect(tile.id)} draggable onDragStart={() => setDragId(tile.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropTile(tile.id)} />))}
+            {hand.map((tile) => (<Tile3D key={tile.id} tile={tile} selected={selectedIds.includes(tile.id)} isNew={isMyTurn && gameState.lastDrawnTileId === tile.id} onClick={() => toggleSelect(tile.id)} draggable onDragStart={() => setDragId(tile.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropTile(tile.id)} />))}
           </div>
         </div>
       )}
