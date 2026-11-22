@@ -1,6 +1,7 @@
-'use client';
+﻿'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { recordWin } from '@/lib/supabase';
 import {
   UnoCard,
   UnoColor,
@@ -97,6 +98,13 @@ export default function UnoGame({
   onRestartGame,
 }: UnoGameProps) {
   const [pendingWildCardId, setPendingWildCardId] = useState<string | null>(null);
+  const winRecordedRef = useRef(false);
+  useEffect(() => {
+    if (gameState.status !== 'finished') { winRecordedRef.current = false; return; }
+    if (winRecordedRef.current) return;
+    const w = (gameState.winnerId ? gameState.players[gameState.winnerId] : null) || Object.values(gameState.players).find((p) => p.hand.length === 0);
+    if (w && w.id === currentPlayerId) { winRecordedRef.current = true; recordWin(w.nickname, 50, 'UNO Shqip'); }
+  }, [gameState.status, gameState.winnerId, gameState.players, currentPlayerId]);
 
   const me = gameState.players[currentPlayerId];
   const activePlayerId = gameState.playerOrder.at(gameState.currentTurnIndex) || '';
@@ -296,3 +304,4 @@ export default function UnoGame({
     </div>
   );
 }
+

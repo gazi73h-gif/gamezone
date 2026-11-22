@@ -1,12 +1,13 @@
-'use client';
+﻿'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Card,
   PishpirikGameState,
   playPishpirikCard,
   Suit,
 } from '@/lib/pishpirikLogic';
+import { recordWin } from '@/lib/supabase';
 import { Trophy, Layers, Flame, RotateCcw } from 'lucide-react';
 
 interface PishpirikGameProps {
@@ -69,6 +70,7 @@ function PlayingCard({
     </button>
   );
 }
+
 export default function PishpirikGame({
   gameState,
   currentPlayerId,
@@ -80,6 +82,23 @@ export default function PishpirikGame({
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
   const activePlayerName = gameState.players[gameState.currentTurn]?.nickname || '...';
   const topCard = gameState.table.at(gameState.table.length - 1);
+  const winRecordedRef = useRef(false);
+
+  useEffect(() => {
+    if (gameState.status !== 'finished') {
+      winRecordedRef.current = false;
+      return;
+    }
+    if (winRecordedRef.current) return;
+
+    const sortedPlayers = Object.values(gameState.players).sort((a, b) => b.score - a.score);
+    const winner = sortedPlayers[0];
+
+    if (winner && winner.id === currentPlayerId) {
+      winRecordedRef.current = true;
+      recordWin(winner.nickname, winner.score, 'Pishpirik');
+    }
+  }, [gameState.status, gameState.players, currentPlayerId]);
 
   const handlePlayCard = async (cardId: string) => {
     if (!isMyTurn) return;
@@ -214,7 +233,7 @@ export default function PishpirikGame({
           <div className="text-xs text-slate-400 mb-3 text-center">
             {isMyTurn ? 'Zgjidh një letër për ta hedhur:' : 'Letrat e tua në dorë:'}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             {me.hand.map((card) => (
               <PlayingCard
                 key={card.id}

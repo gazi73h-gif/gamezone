@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
 import {
@@ -8,6 +8,7 @@ import {
   submitVizatoGuess,
   advanceVizatoTurn,
 } from '../lib/vizatoLogic';
+import { recordWin } from '@/lib/supabase';
 import {
   Palette,
   Eraser,
@@ -51,6 +52,14 @@ export default function VizatoGame({
   const [selectedColor, setSelectedColor] = useState<string>('#0f172a');
   const [brushSize, setBrushSize] = useState<number>(5);
   const [guessInput, setGuessInput] = useState<string>('');
+
+  const winRecordedRef = useRef(false);
+  useEffect(() => {
+    if (gameState.status !== 'finished') { winRecordedRef.current = false; return; }
+    if (winRecordedRef.current) return;
+    const w = Object.values(gameState.players).sort((a, b) => b.score - a.score);
+    if (w && w.id === currentPlayerId) { winRecordedRef.current = true; recordWin(w.nickname, w.score, 'Vizato & Qëllo'); }
+  }, [gameState.status, gameState.players, currentPlayerId]);
 
   const isDrawer = gameState.currentDrawerId === currentPlayerId && gameState.status === 'playing';
   const drawerName = gameState.players[gameState.currentDrawerId]?.nickname || 'Lojtari';
@@ -389,3 +398,4 @@ export default function VizatoGame({
     </div>
   );
 }
+
