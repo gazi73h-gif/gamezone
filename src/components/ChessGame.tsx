@@ -3,6 +3,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BOT_ID, ChessGameState, ChessPiece, computeBotMove, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, ShieldAlert } from 'lucide-react';
+function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    if (type === 'move') { osc.type = 'triangle'; osc.frequency.setValueAtTime(280, now); osc.frequency.exponentialRampToValueAtTime(110, now + 0.08); gain.gain.setValueAtTime(0.25, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08); osc.start(now); osc.stop(now + 0.09); }
+    else if (type === 'capture') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(190, now); osc.frequency.exponentialRampToValueAtTime(65, now + 0.14); gain.gain.setValueAtTime(0.35, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14); osc.start(now); osc.stop(now + 0.15); }
+    else if (type === 'check') { osc.type = 'sine'; osc.frequency.setValueAtTime(620, now); osc.frequency.setValueAtTime(840, now + 0.11); gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25); osc.start(now); osc.stop(now + 0.26); }
+    else { osc.type = 'triangle'; osc.frequency.setValueAtTime(523, now); osc.frequency.setValueAtTime(659, now + 0.12); osc.frequency.setValueAtTime(784, now + 0.24); gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45); osc.start(now); osc.stop(now + 0.46); }
+  } catch {}
+}
 interface ChessGameProps { gameState: ChessGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: ChessGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
 function ChessPiece3D({ piece }: { piece: ChessPiece }) {
   const isW = piece.color === 'w'; const gid = `cp_${piece.color}_${piece.type}`; const stroke = isW ? '#0f172a' : '#e2e8f0'; const gold = '#f59e0b';
@@ -46,6 +60,16 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
     }, 650);
     return () => clearTimeout(timer);
   }, [gameState, isHost, onUpdateState]);
+  const prevMoveRef = useRef<string>('');
+  useEffect(() => {
+    if (!gameState.lastMove) return;
+    const key = `${gameState.lastMove.from.join(',')}-${gameState.lastMove.to.join(',')}-${gameState.status}`;
+    if (prevMoveRef.current === key) return;
+    prevMoveRef.current = key;
+    if (gameState.status === 'finished') playChessSound('win');
+    else if (gameState.inCheck) playChessSound('check');
+    else playChessSound('move');
+  }, [gameState.lastMove, gameState.inCheck, gameState.status]);
   const legalTargets = selected ? getLegalMoves(gameState.board, selected.at(0)!, selected.at(1)!) : [];
   const handleCellClick = async (r: number, c: number) => {
     if (!isMyTurn) return;
