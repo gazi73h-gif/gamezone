@@ -1,20 +1,14 @@
 ﻿'use client';
 
 import React, { useState, useRef } from 'react';
-import { Radio, Play, Square, SkipForward } from 'lucide-react';
+import { Radio, Play, Square } from 'lucide-react';
 
-const STATIONS = [
-  { name: 'Chill Lounge', url: 'https://' + '://somafm.com' + '/groovesalad-128-mp3' },
-  { name: 'Lush Vocals', url: 'https://' + '://somafm.com' + '/lush-128-mp3' },
-];
+const STREAM_URL = 'https://' + 'antares.dribbcast.com' + '/proxy/s8140/stream';
 
 export default function RadioPlayer() {
-  const [stationIndex, setStationIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const currentStation = STATIONS[stationIndex];
 
   const handleToggle = async () => {
     const audio = audioRef.current;
@@ -37,19 +31,11 @@ export default function RadioPlayer() {
     }
   };
 
-  const handleNextStation = () => {
-    const nextIdx = (stationIndex + 1) % STATIONS.length;
-    setStationIndex(nextIdx);
-    setIsPlaying(false);
-    setIsLoading(false);
-  };
-
   return (
-    <div className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5">
+    <div className="fixed bottom-3 right-3 z-50">
       <audio
-        key={currentStation.url}
         ref={audioRef}
-        src={currentStation.url}
+        src={STREAM_URL}
         preload="none"
         onPlaying={() => {
           setIsPlaying(true);
@@ -71,20 +57,14 @@ export default function RadioPlayer() {
         }`}
       >
         <Radio className={`w-4 h-4 ${isPlaying ? 'text-white animate-pulse' : 'text-amber-400'}`} />
-        <span>{isLoading ? 'Duke u lidhur...' : currentStation.name}</span>
+        <span>
+          {isLoading ? 'Duke u lidhur...' : isPlaying ? 'Ndalo Radion' : 'Radio Live'}
+        </span>
         {isPlaying ? (
           <Square className="w-3.5 h-3.5 fill-current" />
         ) : (
           <Play className="w-3.5 h-3.5 fill-current text-emerald-400" />
         )}
-      </button>
-
-      <button
-        onClick={handleNextStation}
-        title="Ndërro stacionin"
-        className="p-2.5 rounded-full bg-slate-900/95 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-2xl transition cursor-pointer"
-      >
-        <SkipForward className="w-3.5 h-3.5" />
       </button>
     </div>
   );
