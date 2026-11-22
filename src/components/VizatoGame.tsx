@@ -58,7 +58,7 @@ export default function VizatoGame({
     if (gameState.status !== 'finished') { winRecordedRef.current = false; return; }
     if (winRecordedRef.current) return;
     const w = Object.values(gameState.players).sort((a, b) => b.score - a.score);
-    if (w && w.id === currentPlayerId) { winRecordedRef.current = true; recordWin(w.nickname, w.score, 'Vizato & Qëllo'); }
+    if (w[0] && w[0].id === currentPlayerId) { winRecordedRef.current = true; recordWin(w[0].nickname, w[0].score, 'Vizato & Qëllo'); }
   }, [gameState.status, gameState.players, currentPlayerId]);
 
   const isDrawer = gameState.currentDrawerId === currentPlayerId && gameState.status === 'playing';
@@ -398,4 +398,5 @@ export default function VizatoGame({
     </div>
   );
 }
+
 
