@@ -115,22 +115,28 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
         })}
       </div>
 
-      <div className="w-full max-w-[520px] aspect-square mx-auto bg-gradient-to-br from-amber-800 via-amber-950 to-stone-950 p-2.5 sm:p-3.5 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-2 border-amber-500/40">
-        <div className="w-full h-full rounded-xl overflow-hidden border-2 border-amber-950 grid grid-cols-8 grid-rows-8 shadow-inner">
+      <div className="w-full max-w-[520px] aspect-square mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-4 border-slate-800">
+        <div className="w-full h-full grid grid-cols-8 grid-rows-8">
           {rows.map((r) => cols.map((c) => {
             const isLight = (r + c) % 2 === 0;
             const piece = gameState.board[r]?.[c];
-            const isSel = selected && selected.at(0) === r && selected.at(1) === c;
+            const isSel = selected !== null && selected.at(0) === r && selected.at(1) === c;
             const isTarget = legalTargets.some(([lr, lc]) => lr === r && lc === c);
-            const isLast = gameState.lastMove && ((gameState.lastMove.from.at(0) === r && gameState.lastMove.from.at(1) === c) || (gameState.lastMove.to.at(0) === r && gameState.lastMove.to.at(1) === c));
+            const fromR = gameState.lastMove?.from?.at(0);
+            const fromC = gameState.lastMove?.from?.at(1);
+            const toR = gameState.lastMove?.to?.at(0);
+            const toC = gameState.lastMove?.to?.at(1);
+            const isLast = (fromR === r && fromC === c) || (toR === r && toC === c);
             const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
+            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#f5f682]' : isLast ? (isLight ? 'bg-[#f5f682]' : 'bg-[#b9ca43]') : isLight ? 'bg-[#ebecd0]' : 'bg-[#779556]';
+            const txtCol = isLast || isSel ? 'text-[#779556]' : isLight ? 'text-[#779556]' : 'text-[#ebecd0]';
             return (
-              <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${isLight ? 'bg-[#f0d9b5]' : 'bg-[#b58863]'} ${isSel ? '!bg-amber-400/90' : ''} ${isLast && !isSel ? 'after:absolute after:inset-0 after:bg-yellow-300/30' : ''} ${isKingCheck ? '!bg-red-600/85 animate-pulse' : ''} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
-                {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[9px] font-black select-none ${isLight ? 'text-[#b58863]' : 'text-[#f0d9b5]'}`}>{8 - r}</span>}
-                {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[9px] font-black select-none ${isLight ? 'text-[#b58863]' : 'text-[#f0d9b5]'}`}>{files[c]}</span>}
-                {piece && (<div className={`w-4/5 h-4/5 z-10 transition-transform ${isSel ? 'scale-110 -translate-y-1' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
-                {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-emerald-600/75 ring-2 ring-white/60 z-20" />)}
-                {isTarget && piece && (<span className="absolute inset-1 rounded-xl border-4 border-red-500/85 z-20 animate-pulse" />)}
+              <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
+                {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold select-none ${txtCol}`}>{8 - r}</span>}
+                {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[10px] font-extrabold select-none ${txtCol}`}>{files[c]}</span>}
+                {piece && (<div className={`w-[86%] h-[86%] z-10 transition-transform ${isSel ? 'scale-110 -translate-y-0.5' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
+                {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-black/20 z-20" />)}
+                {isTarget && piece && (<span className="absolute inset-1 rounded-full border-[5px] border-black/20 z-20" />)}
               </button>
             );
           }))}
