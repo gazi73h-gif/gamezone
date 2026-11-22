@@ -1,5 +1,8 @@
 ﻿import { NextRequest } from 'next/server';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const STREAMS: Record<string, string> = {
   shqip: 'https://' + '://sednastream.com' + '/proxy/radioshqip/stream',
   dukagjini: 'https://' + '://voscast.com' + '/radiodukagjini',
@@ -12,8 +15,9 @@ export async function GET(req: NextRequest) {
   try {
     const upstream = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': station === 'shqip' ? 'https://shqipfm.al' : 'https://dukagjini.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': '*/*',
+        'Icy-MetaData': '0',
       },
       cache: 'no-store',
     });
@@ -23,9 +27,11 @@ export async function GET(req: NextRequest) {
     }
 
     return new Response(upstream.body, {
+      status: 200,
       headers: {
-        'Content-Type': upstream.headers.get('content-type') || 'audio/mpeg',
+        'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Connection': 'keep-alive',
       },
     });
   } catch {
