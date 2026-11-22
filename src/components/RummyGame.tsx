@@ -17,16 +17,15 @@ import {
 } from '@/lib/rummyLogic';
 import { recordWin } from '@/lib/supabase';
 import {
-  ChevronLeft,
   RotateCcw,
   Trophy,
-  Smile,
-  BarChart2,
-  ListOrdered,
-  X,
-  Crown,
-  Info,
+  Menu,
+  FileText,
+  MessageSquare,
   Sparkles,
+  Crown,
+  ChevronLeft,
+  X,
 } from 'lucide-react';
 
 interface RummyGameProps {
@@ -38,11 +37,11 @@ interface RummyGameProps {
   onLeaveRoom?: () => void;
 }
 
-const SUIT_DISPLAY: Record<Suit, { sym: string; color: string }> = {
-  hearts: { sym: '♥', color: 'text-[#9e1b1b]' },
-  diamonds: { sym: '♦', color: 'text-[#9e1b1b]' },
-  spades: { sym: '♠', color: 'text-[#111827]' },
-  clubs: { sym: '♣', color: 'text-[#111827]' },
+const SUIT_DISPLAY: Record<Suit, { sym: string; color: string; isRed: boolean }> = {
+  hearts: { sym: '♥', color: 'text-[#d62828]', isRed: true },
+  diamonds: { sym: '♦', color: 'text-[#d62828]', isRed: true },
+  spades: { sym: '♠', color: 'text-[#1c1917]', isRed: false },
+  clubs: { sym: '♣', color: 'text-[#1c1917]', isRed: false },
 };
 
 function cardRank(n: number): string {
@@ -53,13 +52,62 @@ function cardRank(n: number): string {
   return String(n);
 }
 
-// Komponenti i letrës individuale me dizajnin e përputhur me fotot
-function CardItem({
+// Ngjyrat e rrethit të meldeve si në screenshot (Meld 1 = Cyan, Meld 2 = Green, Meld 3 = Gold)
+const GROUP_COLORS = [
+  { border: 'border-[#00b4d8] text-[#0077b6]', bg: 'bg-[#caf0f8]/30', gradient: 'from-white via-white to-[#caf0f8]' },
+  { border: 'border-[#22c55e] text-[#15803d]', bg: 'bg-[#dcfce7]/30', gradient: 'from-white via-white to-[#dcfce7]' },
+  { border: 'border-[#f59e0b] text-[#b45309]', bg: 'bg-[#fef3c7]/30', gradient: 'from-white via-white to-[#fef3c7]' },
+];
+
+// Ilustrim grafik për letrat me figura (J, Q, K) si në screenshot
+function CourtCardArt({ rank, isRed }: { rank: string; isRed: boolean }) {
+  if (rank === 'Q') {
+    return (
+      <div className="w-full flex-1 flex flex-col items-center justify-center p-0.5">
+        <svg viewBox="0 0 48 56" className="w-full h-full max-h-[50px] drop-shadow-sm">
+          <ellipse cx="24" cy="22" rx="10" ry="12" fill="#fed7aa" />
+          <path d="M14 20 Q24 8 34 20 Q36 34 30 44 L18 44 Q12 34 14 20 Z" fill={isRed ? '#e11d48' : '#2563eb'} />
+          <ellipse cx="24" cy="24" rx="7" ry="8" fill="#ffedd5" />
+          <circle cx="21" cy="22" r="1.2" fill="#1e293b" />
+          <circle cx="27" cy="22" r="1.2" fill="#1e293b" />
+          <path d="M21 27 Q24 30 27 27" stroke="#e11d48" strokeWidth="1.2" fill="none" />
+          {/* Fustan / shall mbretëror me pika */}
+          <path d="M16 40 L32 40 L34 54 L14 54 Z" fill={isRed ? '#be123c' : '#1d4ed8'} />
+          <circle cx="20" cy="46" r="1" fill="#fef08a" />
+          <circle cx="24" cy="48" r="1" fill="#fef08a" />
+          <circle cx="28" cy="46" r="1" fill="#fef08a" />
+        </svg>
+      </div>
+    );
+  }
+  if (rank === 'J' || rank === 'K') {
+    return (
+      <div className="w-full flex-1 flex flex-col items-center justify-center p-0.5">
+        <svg viewBox="0 0 48 56" className="w-full h-full max-h-[50px] drop-shadow-sm">
+          <rect x="18" y="10" width="12" height="4" fill="#f59e0b" />
+          <polygon points="16,10 20,4 24,9 28,4 32,10" fill="#eab308" stroke="#ca8a04" strokeWidth="0.8" />
+          <ellipse cx="24" cy="22" rx="9" ry="10" fill="#fed7aa" />
+          <circle cx="21" cy="20" r="1.2" fill="#1e293b" />
+          <circle cx="27" cy="20" r="1.2" fill="#1e293b" />
+          <path d="M20 25 Q24 27 28 25" stroke="#991b1b" strokeWidth="1" fill="none" />
+          <path d="M19 14 L20 18 L28 18 L29 14 Z" fill="#fef08a" />
+          {/* Veshja mbretërore */}
+          <path d="M15 32 L33 32 L35 54 L13 54 Z" fill={isRed ? '#b91c1c' : '#1e3a8a'} />
+          <line x1="24" y1="32" x2="24" y2="54" stroke="#fef08a" strokeWidth="2" />
+        </svg>
+      </div>
+    );
+  }
+  return null;
+}
+
+// Komponenti i kartës me stilin e bukur të aplikacionit të ri
+function CasinoCardItem({
   tile,
   selected,
   isNew,
-  horizontal,
   small,
+  groupColorIdx,
   onClick,
   onDoubleClick,
   draggable,
@@ -70,8 +118,8 @@ function CardItem({
   tile: RummyTile;
   selected?: boolean;
   isNew?: boolean;
-  horizontal?: boolean;
   small?: boolean;
+  groupColorIdx?: number;
   onClick?: () => void;
   onDoubleClick?: () => void;
   draggable?: boolean;
@@ -80,12 +128,16 @@ function CardItem({
   onDrop?: () => void;
 }) {
   const suitInfo = SUIT_DISPLAY[tile.suit || 'spades'];
+  const rankStr = cardRank(tile.number);
+  const isCourt = tile.number >= 11 && tile.number <= 13;
 
-  const sizeClasses = horizontal
-    ? 'w-[72px] h-[50px] sm:w-[86px] sm:h-[60px]'
-    : small
-    ? 'w-[38px] h-[56px] sm:w-[46px] sm:h-[68px]'
-    : 'w-[48px] h-[72px] sm:w-[58px] sm:h-[88px] md:w-[64px] md:h-[96px]';
+  const groupStyle = groupColorIdx !== undefined && groupColorIdx >= 0 ? GROUP_COLORS[groupColorIdx % GROUP_COLORS.length] : null;
+
+  const sizeClass = small
+    ? 'w-[42px] h-[62px] sm:w-[50px] sm:h-[74px] p-1'
+    : 'w-[52px] h-[80px] sm:w-[64px] sm:h-[98px] md:w-[72px] md:h-[110px] p-1 sm:p-1.5';
+
+  const bgGradient = groupStyle ? groupStyle.gradient : 'from-white via-[#fafafa] to-[#f4f4f5]';
 
   return (
     <div
@@ -95,50 +147,75 @@ function CardItem({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`relative select-none rounded-[8px] sm:rounded-[10px] bg-[#fdfbf7] border border-[#d5ccbd] shadow-[0_4px_10px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer shrink-0 flex flex-col justify-between p-1 sm:p-1.5 ${sizeClasses} ${
-        selected
-          ? '-translate-y-5 ring-2 ring-amber-400 shadow-[0_12px_24px_rgba(251,191,36,0.5)] z-30'
-          : ''
-      } ${
-        isNew
-          ? 'ring-2 ring-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]'
-          : 'hover:-translate-y-1.5'
-      }`}
+      className={`relative select-none rounded-[10px] sm:rounded-[12px] bg-gradient-to-b ${bgGradient} border border-[#d1d5db] shadow-[0_6px_14px_rgba(0,0,0,0.45)] transition-all duration-200 cursor-pointer shrink-0 flex flex-col justify-between overflow-hidden ${sizeClass} ${
+        selected ? '-translate-y-6 scale-105 ring-4 ring-amber-400 shadow-[0_15px_30px_rgba(251,191,36,0.6)] z-30' : 'hover:-translate-y-2'
+      } ${isNew ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.7)]' : ''}`}
     >
       {tile.isJoker ? (
-        <div className="w-full h-full rounded-[6px] border border-amber-400/60 bg-gradient-to-b from-amber-50 to-amber-100/60 flex flex-col items-center justify-center">
-          <Crown className={small ? 'w-3 h-3 text-amber-600' : 'w-4 h-4 sm:w-5 sm:h-5 text-amber-600'} />
-          <span className="text-[9px] sm:text-[10px] font-black tracking-tight text-amber-900 font-serif">
-            JOL
-          </span>
-        </div>
-      ) : horizontal ? (
-        <div className="w-full h-full flex items-center justify-between px-1">
-          <div className={`flex flex-col items-center leading-none font-black text-xs sm:text-sm ${suitInfo.color}`}>
-            <span>{cardRank(tile.number)}</span>
-            <span className="text-[11px] sm:text-xs">{suitInfo.sym}</span>
-          </div>
-          <div className={`leading-none text-xl sm:text-2xl ${suitInfo.color}`}>{suitInfo.sym}</div>
+        <div className="w-full h-full rounded-[8px] bg-gradient-to-b from-amber-50 to-amber-200 border border-amber-400/80 flex flex-col items-center justify-center">
+          <Crown className={small ? 'w-4 h-4 text-amber-600' : 'w-6 h-6 sm:w-8 sm:h-8 text-amber-600 animate-pulse'} />
+          <span className="text-[10px] sm:text-xs font-black tracking-wider text-amber-950 font-serif mt-0.5">JOL</span>
         </div>
       ) : (
         <>
-          <div className={`flex flex-col items-start leading-none font-black ${suitInfo.color}`}>
-            <span className={small ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm md:text-base'}>
-              {cardRank(tile.number)}
-            </span>
-            <span className={small ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'}>
+          {/* Indeksi lart-majtas: Numri me rreth me ngjyrë nëse është pjesë e një meldi */}
+          <div className="flex flex-col items-center self-start leading-none font-black">
+            {groupStyle ? (
+              <div
+                className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full border-2 ${groupStyle.border} flex items-center justify-center font-black ${
+                  small ? 'text-[9px]' : 'text-[11px] sm:text-xs md:text-sm'
+                }`}
+              >
+                {rankStr}
+              </div>
+            ) : (
+              <span className={`font-black tracking-tight ${small ? 'text-[11px]' : 'text-xs sm:text-sm md:text-base'} ${suitInfo.color}`}>
+                {rankStr}
+              </span>
+            )}
+            <span className={`leading-none mt-0.5 ${small ? 'text-[9px]' : 'text-[11px] sm:text-xs md:text-sm'} ${suitInfo.color}`}>
               {suitInfo.sym}
             </span>
           </div>
-          <div
-            className={`self-end leading-none font-bold ${
-              small ? 'text-sm sm:text-base' : 'text-xl sm:text-2xl md:text-3xl'
-            } ${suitInfo.color}`}
-          >
-            {suitInfo.sym}
-          </div>
+
+          {/* Qendra: Figurë për J, Q, K ose simbol i madh për numra */}
+          {isCourt ? (
+            <CourtCardArt rank={rankStr} isRed={suitInfo.isRed} />
+          ) : (
+            <div className={`self-end font-black leading-none ${small ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl md:text-4xl'} ${suitInfo.color}`}>
+              {suitInfo.sym}
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+// Pjesa e pasme e kuvertës (Red decorative back si në foto)
+function CasinoDeckBack({ count, onClick, active }: { count: number; onClick: () => void; active: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 cursor-pointer" onClick={onClick}>
+      <div
+        className={`relative w-[54px] h-[82px] sm:w-[66px] sm:h-[100px] md:w-[74px] md:h-[112px] rounded-[10px] sm:rounded-[12px] bg-[#d90429] border-2 border-white shadow-[0_8px_20px_rgba(0,0,0,0.6)] flex items-center justify-center overflow-hidden transition-all ${
+          active ? 'ring-4 ring-amber-400 scale-105 animate-pulse' : 'hover:scale-102'
+        }`}
+      >
+        {/* Modeli i lakuar i kartës së kuqe */}
+        <div className="w-[85%] h-[88%] rounded-[8px] border-2 border-dashed border-white/60 bg-[#ef233c] flex flex-wrap items-center justify-center p-1 gap-1">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <span key={i} className="text-white/40 text-[9px] sm:text-[11px] leading-none">
+              ♣
+            </span>
+          ))}
+        </div>
+        {/* Letra poshtë për efekt 3D */}
+        <div className="absolute -bottom-1 -right-1 w-full h-full rounded-[10px] bg-[#9b2226] border border-white/40 -z-10" />
+      </div>
+      {/* Distinktivi me numrin e letrave në kuvertë (30 si në foto) */}
+      <div className="bg-[#1e1b4b] border-2 border-[#caa764] px-2.5 py-0.5 rounded-full text-white font-black text-[11px] sm:text-xs shadow-md">
+        {count}
+      </div>
     </div>
   );
 }
@@ -155,8 +232,8 @@ export default function RummyGame({
   const [localOrder, setLocalOrder] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [errorToast, setErrorToast] = useState<string>('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
-  const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
+  const [showMenu, setShowMenu] = useState<boolean>(false);
+  const [showChatPopup, setShowChatPopup] = useState<boolean>(false);
   const [activeReaction, setActiveReaction] = useState<string | null>(null);
 
   const winRecordedRef = useRef(false);
@@ -167,11 +244,9 @@ export default function RummyGame({
   const opponentId = gameState.playerOrder.find((id) => id !== currentPlayerId) || BOT_RUMMY_ID;
   const opponent = gameState.players[opponentId];
 
-  // Pikët e meldeve në tavolinë
   const myPoints = me ? getPlayerMeldPoints(gameState, currentPlayerId) : 0;
-  const opponentPoints = opponent ? getPlayerMeldPoints(gameState, opponentId) : 0;
 
-  // 1. Llogaritja e kombinimeve të mundshme në të gjithë dorën
+  // 1. Gjej të gjitha meldet e mundshme në dorë
   const handMelds = useMemo(() => {
     if (!me) return [];
     return findAllMeldsInHand(me.hand);
@@ -181,7 +256,25 @@ export default function RummyGame({
     return handMelds.reduce((sum, m) => sum + m.points, 0);
   }, [handMelds]);
 
-  // 2. Llogaritja e kartave të zgjedhura manualisht
+  // Harta e letrave që bëjnë pjesë në një meld dhe indeksi i tyre i ngjyrës
+  const meldedTileColorMap = useMemo(() => {
+    const map = new Map<string, number>();
+    handMelds.forEach((m, idx) => {
+      m.tiles.forEach((t) => map.set(t.id, idx));
+    });
+    return map;
+  }, [handMelds]);
+
+  // 2. Llogaritja e Deadwood (pikët e letrave që nuk janë në kombinim)
+  const deadwoodPoints = useMemo(() => {
+    if (!me) return 0;
+    const meldedIds = new Set(handMelds.flatMap((m) => m.tiles.map((t) => t.id)));
+    return me.hand
+      .filter((t) => !meldedIds.has(t.id))
+      .reduce((sum, t) => sum + (t.isJoker ? 0 : t.number === 1 ? 1 : Math.min(t.number, 10)), 0);
+  }, [me, handMelds]);
+
+  // 3. Letrat e zgjedhura manualisht
   const selectedTiles = useMemo(() => {
     if (!me) return [];
     return me.hand.filter((t) => selectedIds.includes(t.id));
@@ -191,7 +284,7 @@ export default function RummyGame({
     return evaluateSelectedMelds(selectedTiles);
   }, [selectedTiles]);
 
-  // Përcaktimi nëse lojtari mund të hapet tani
+  // Mundësia e hapjes / vendosjes (Meld)
   const canOpenWithSelected =
     selectedIds.length >= 3 &&
     selectedEval.valid &&
@@ -201,15 +294,14 @@ export default function RummyGame({
 
   const canOpen = isMyTurn && gameState.hasDrawn && (canOpenWithSelected || canOpenWithHand);
 
-  // Pikët që shfaqen në butonin "Vendos: min 51 — ke X"
-  const displayPoints =
+  const displayMeldPoints =
     selectedIds.length > 0
       ? selectedEval.valid
         ? selectedEval.totalPoints
         : 0
       : handMeldPoints;
 
-  // Regjistro fitoren në Supabase
+  // Regjistro fitoren
   useEffect(() => {
     if (gameState.status !== 'finished') {
       winRecordedRef.current = false;
@@ -217,7 +309,7 @@ export default function RummyGame({
     }
     if (!winRecordedRef.current && gameState.winnerId === currentPlayerId && gameState.winnerName) {
       winRecordedRef.current = true;
-      recordWin(gameState.winnerName, 150, 'Rummy / Jol');
+      recordWin(gameState.winnerName, 150, 'Rummy / Remi');
     }
   }, [gameState.status, gameState.winnerId, gameState.winnerName, currentPlayerId]);
 
@@ -226,14 +318,13 @@ export default function RummyGame({
     if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== BOT_RUMMY_ID) return;
     const timer = setTimeout(async () => {
       await onUpdateState(runBotRummyTurn(gameState));
-    }, 1100);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [gameState, isHost, onUpdateState]);
 
-  // Pastrim mesazhi gabimi pas disa sekondash
   useEffect(() => {
     if (!errorToast) return;
-    const t = setTimeout(() => setErrorToast(''), 3200);
+    const t = setTimeout(() => setErrorToast(''), 3000);
     return () => clearTimeout(t);
   }, [errorToast]);
 
@@ -271,31 +362,15 @@ export default function RummyGame({
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const [sortMode, setSortMode] = useState<'run' | 'group'>('run');
+  // Butoni SORT: rendit automatikisht sipas sekuencave dhe grupeve
   const handleSort = () => {
     if (!me) return;
-    if (sortMode === 'run') {
-      const sOrd: Record<Suit, number> = { hearts: 1, spades: 2, diamonds: 3, clubs: 4 };
-      const sorted = me.hand
-        .slice()
-        .sort((a, b) =>
-          a.isJoker
-            ? 1
-            : b.isJoker
-            ? -1
-            : sOrd[a.suit] - sOrd[b.suit] || a.number - b.number
-        )
-        .map((t) => t.id);
-      setLocalOrder(sorted);
-      setSortMode('group');
-    } else {
-      const sorted = me.hand
-        .slice()
-        .sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : a.number - b.number))
-        .map((t) => t.id);
-      setLocalOrder(sorted);
-      setSortMode('run');
-    }
+    const sOrd: Record<Suit, number> = { spades: 1, clubs: 2, diamonds: 3, hearts: 4 };
+    const sorted = me.hand
+      .slice()
+      .sort((a, b) => (a.isJoker ? 1 : b.isJoker ? -1 : sOrd[a.suit] - sOrd[b.suit] || a.number - b.number))
+      .map((t) => t.id);
+    setLocalOrder(sorted);
   };
 
   const handleDraw = async (src: 'deck' | 'discard') => {
@@ -304,32 +379,25 @@ export default function RummyGame({
       return;
     }
     if (gameState.hasDrawn) {
-      setErrorToast('Tashmë ke tërhequr një letër!');
+      setErrorToast('Tashmë ke tërhequr letër!');
       return;
     }
     setErrorToast('');
     await onUpdateState(drawRummyTile(gameState, currentPlayerId, src));
   };
 
-  // Veprimi i hapjes së letrave ("Vendos: min 51")
+  // Veprimi i hapjes së letrave (Meld / Open Hand)
   const handlePlayMeld = async () => {
-    if (!isMyTurn) {
-      setErrorToast('Nuk është radha jote!');
-      return;
-    }
-    if (!gameState.hasDrawn) {
-      setErrorToast('Tërhiq një letër fillimisht para se të hapesh!');
+    if (!canOpen) {
+      if (!me?.hasOpened && displayMeldPoints < 51) {
+        setErrorToast(`Kërkohen min. 51 pikë për t'u hapur! Aktualisht ke ${displayMeldPoints} pikë.`);
+      } else {
+        setErrorToast('Zgjidh kombinimin me min. 3 letra për ta hapur!');
+      }
       return;
     }
 
-    // Nëse ka zgjedhur letra manualisht dhe ato janë të vlefshme
     if (selectedIds.length >= 3 && selectedEval.valid) {
-      if (!me?.hasOpened && selectedEval.totalPoints < 51) {
-        setErrorToast(
-          `Kërkohen min. 51 pikë për t'u hapur! Këto letra kanë ${selectedEval.totalPoints} pikë.`
-        );
-        return;
-      }
       const r = playRummyMeld(gameState, currentPlayerId, selectedIds);
       if (r.error) {
         setErrorToast(r.error);
@@ -340,7 +408,6 @@ export default function RummyGame({
       return;
     }
 
-    // Nëse nuk ka përzgjedhur manualisht por dora ka kombinime të mjaftueshme
     if (canOpenWithHand) {
       const r = playRummyMeld(gameState, currentPlayerId);
       if (r.error) {
@@ -350,14 +417,6 @@ export default function RummyGame({
       setSelectedIds([]);
       await onUpdateState(r.state);
       return;
-    }
-
-    if (selectedIds.length > 0 && !selectedEval.valid) {
-      setErrorToast('Kombinimi i përzgjedhur nuk është i vlefshëm!');
-    } else if (!me?.hasOpened) {
-      setErrorToast(`Duhen të paktën 51 pikë për hapjen e parë! Aktualisht ke ${displayPoints} pikë.`);
-    } else {
-      setErrorToast('Zgjidh kombinimin me min. 3 letra për ta vendosur në tavolinë!');
     }
   };
 
@@ -381,156 +440,158 @@ export default function RummyGame({
       setErrorToast('Tërhiq një letër fillimisht!');
       return;
     }
-
     const tileIdToDiscard = specificTileId || (selectedIds.length === 1 ? selectedIds[0] : null);
     if (!tileIdToDiscard) {
-      setErrorToast('Zgjidh saktësisht 1 letër për ta hedhur!');
+      setErrorToast('Zgjidh saktësisht 1 letër për ta hedhur në pirg!');
       return;
     }
-
     setSelectedIds([]);
     await onUpdateState(discardRummyTile(gameState, currentPlayerId, tileIdToDiscard));
   };
 
-  const sendEmojiReaction = (emoji: string) => {
+  const sendReaction = (emoji: string) => {
     setActiveReaction(emoji);
-    setShowEmojiPicker(false);
+    setShowChatPopup(false);
     setTimeout(() => setActiveReaction(null), 2500);
   };
 
   const topDiscard =
-    gameState.discardPile.length > 0
-      ? gameState.discardPile[gameState.discardPile.length - 1]
-      : null;
+    gameState.discardPile.length > 0 ? gameState.discardPile[gameState.discardPile.length - 1] : null;
 
-  const opponentMelds = gameState.melds.filter((m) => m.ownerId === opponentId);
   const myMelds = gameState.melds.filter((m) => m.ownerId === currentPlayerId);
 
   return (
-    <div className="relative w-full min-h-[600px] sm:min-h-[720px] bg-[#080d12] flex flex-col items-center justify-between p-2 sm:p-4 select-none font-sans overflow-hidden">
-      {/* Toast njoftimi */}
+    <div className="relative w-full min-h-screen bg-[#004e92] bg-[radial-gradient(#0066b2_1px,transparent_1px)] [background-size:16px_16px] flex flex-col items-center justify-between p-2 sm:p-4 select-none font-sans overflow-hidden">
+      
+      {/* Toast mesazh gabimi */}
       {errorToast && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#1c1214] border border-red-500/80 text-red-200 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-2xl flex items-center gap-2 animate-bounce">
-          <Info className="w-4 h-4 text-red-400" />
-          <span>{errorToast}</span>
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1e1b4b] border-2 border-red-500 text-white font-bold px-5 py-2.5 rounded-2xl text-xs sm:text-sm shadow-2xl animate-bounce">
+          {errorToast}
         </div>
       )}
 
-      {/* Reagimi me emoji */}
+      {/* Reagimi me emoji në ekran */}
       {activeReaction && (
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 text-5xl sm:text-6xl animate-ping duration-1000">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 text-6xl animate-ping duration-1000">
           {activeReaction}
         </div>
       )}
 
-      {/* Tavolina kryesore */}
-      <div className="relative w-full max-w-[1100px] flex-1 bg-gradient-to-b from-[#0e1620] via-[#0b1118] to-[#070b10] border-[1.5px] border-[#c59a3f]/40 rounded-[32px] sm:rounded-[48px] shadow-[0_0_50px_rgba(0,0,0,0.85)] flex flex-col justify-between p-3 sm:p-6 overflow-hidden">
+      {/* ===================== SHIRITI I SIPËRM ===================== */}
+      <div className="w-full max-w-6xl flex items-center justify-between px-2 py-1 z-20">
         
-        {/* ===================== SHIRITI I SIPËRM ===================== */}
-        <div className="w-full flex items-center justify-between relative z-20">
-          <button
-            type="button"
-            onClick={onLeaveRoom}
-            className="p-1.5 sm:p-2 text-slate-300 hover:text-white hover:bg-white/5 rounded-full transition cursor-pointer"
-            title="Kthehu"
-          >
-            <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
-          </button>
-
-          {/* Kuti / Badge i kundërshtarit (sabajdin) */}
-          {opponent && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-0 bg-[#111822] border border-[#c59a3f]/70 px-3.5 sm:px-4 py-1.5 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-lg">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1b2533] border border-[#c59a3f]/40 flex items-center justify-center text-[#d4af37] text-xs font-bold">
-                {opponent.nickname.slice(0, 2).toUpperCase()}
-              </div>
-
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1">
-                  <span className="text-white text-xs sm:text-sm font-bold tracking-tight">
-                    {opponent.nickname}
-                  </span>
-                  <span className="text-[#c59a3f] text-[10px]">▸</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className="flex items-center gap-1 text-slate-300">
-                    <span className="text-amber-400">🂠</span> {opponent.hand.length}
-                  </span>
-                  <span className="bg-[#211d13] border border-[#856c27]/60 text-[#d4af37] px-1.5 py-0.2 rounded text-[9px] font-semibold">
-                    {opponent.rank || 'Bronz'}
-                  </span>
-                </div>
-              </div>
+        {/* Majtas: Piggy Bank, Room Pot, Safe Badges (si në foto) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Piggy Bank */}
+          <div className="bg-[#581c87]/90 border border-[#a855f7] p-1 sm:p-1.5 rounded-xl flex items-center gap-1.5 shadow-md">
+            <span className="text-base sm:text-xl">🐷</span>
+            <div className="hidden sm:flex flex-col leading-none">
+              <span className="text-[8px] text-purple-200 uppercase font-bold">Max 10M</span>
+              <span className="text-[10px] text-amber-300 font-extrabold">🪙 50.000</span>
             </div>
-          )}
+          </div>
 
-          {/* Pikët e kundërshtarit në flori (57 PTS si në Image 003) */}
-          <div className="flex flex-col items-end">
-            {opponentPoints > 0 && (
-              <span className="text-[#d4af37] font-extrabold text-sm sm:text-base tracking-wider drop-shadow-md">
-                {opponentPoints} PTS
-              </span>
-            )}
+          {/* ROOM POT */}
+          <div className="bg-[#451a03] border-2 border-[#ca8a04] px-2.5 py-1 rounded-xl flex flex-col items-center shadow-lg">
+            <span className="text-[8px] sm:text-[9px] uppercase font-black text-amber-200 tracking-wider">ROOM POT</span>
+            <span className="text-xs sm:text-sm font-black text-amber-400">1.34M</span>
+          </div>
+
+          {/* Safe Box */}
+          <div className="hidden md:flex bg-[#1e1b4b] border border-amber-400/60 p-1.5 rounded-xl items-center gap-1.5 shadow-md">
+            <span className="text-base">🗄️</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-[8px] text-slate-300 font-bold">04:46</span>
+              <span className="text-[10px] text-amber-300 font-extrabold">🪙 100K</span>
+            </div>
           </div>
         </div>
 
-        {/* Meldet e kundërshtarit lart djathtas */}
-        {opponentMelds.length > 0 && (
-          <div className="w-full flex justify-end pr-2 pt-2 gap-3 z-10">
-            <div className="flex flex-col items-end gap-2 bg-black/20 p-2 rounded-2xl border border-[#c59a3f]/20">
-              {opponentMelds.map((meld) => (
-                <div
-                  key={meld.id}
-                  onClick={() => handleAttachToMeld(meld.id)}
-                  className={`flex items-center -space-x-4 sm:-space-x-5 transition ${
-                    isMyTurn && selectedIds.length > 0
-                      ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5'
-                      : ''
-                  }`}
-                  title="Kliko për të shtuar letra"
-                >
-                  {meld.tiles.map((t) => (
-                    <CardItem key={t.id} tile={t} small />
-                  ))}
-                </div>
-              ))}
+        {/* Qendër Lart: Profili i Kundërshtarit (Samso Alam) me rreth të artë ndriçues */}
+        {opponent && (
+          <div className="relative flex items-center bg-[#4a044e]/90 border-2 border-amber-400 px-3 sm:px-5 py-1 rounded-full shadow-[0_0_20px_rgba(251,191,36,0.6)]">
+            {/* Niveli i yllit */}
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-[10px] shadow border border-white -ml-2">
+              ⭐ 20
+            </div>
+
+            {/* Emri dhe Gjinia */}
+            <div className="mx-2 flex flex-col items-center">
+              <span className="text-white font-black text-xs sm:text-sm tracking-wide flex items-center gap-1">
+                {opponent.nickname} <span className="text-amber-300 text-[10px]">♀</span>
+              </span>
+            </div>
+
+            {/* Balanca me çipa */}
+            <div className="bg-[#2e1065] border border-amber-400/80 px-2 py-0.5 rounded-full flex items-center gap-1 text-[10px] sm:text-xs font-black text-amber-300">
+              <span>🪙</span>
+              <span>830K</span>
             </div>
           </div>
         )}
 
-        {/* ===================== ZONA QENDRORE ===================== */}
-        <div className="relative my-auto flex flex-col items-center justify-center py-3 w-full z-10">
-          <div className="flex items-center justify-center gap-3 sm:gap-5 mb-3">
-            {/* Kuverta JOL */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div
-                onClick={() => handleDraw('deck')}
-                className={`relative w-[52px] h-[76px] sm:w-[62px] sm:h-[90px] rounded-[10px] bg-[#141d27] border-[1.5px] border-[#c59a3f]/80 shadow-[0_8px_20px_rgba(0,0,0,0.7)] flex flex-col items-center justify-center transition-all ${
-                  isMyTurn && !gameState.hasDrawn
-                    ? 'ring-2 ring-amber-400 cursor-pointer hover:scale-105'
-                    : 'opacity-90'
-                }`}
-                title="Tërhiq letër nga kuverta"
-              >
-                <div className="absolute -bottom-1 -right-1 w-full h-full rounded-[10px] bg-[#0e1620] border border-[#c59a3f]/40 -z-10" />
-                <span className="text-[#c59a3f]/40 text-lg sm:text-xl">♠</span>
-                <span className="text-[#d4af37] font-serif italic font-bold text-xs sm:text-sm tracking-wider">
-                  JOL
+        {/* Djathtas: Fletorja e shënimeve dhe butoni i menusë ☰ */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMenu(true)}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 flex items-center justify-center text-white cursor-pointer shadow-md"
+            title="Rregullat"
+          >
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" />
+          </button>
+
+          <button
+            onClick={() => setShowMenu(true)}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-b from-[#7e22ce] to-[#581c87] border-2 border-amber-400 flex items-center justify-center text-white cursor-pointer shadow-lg hover:scale-105"
+            title="Menu"
+          >
+            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* ===================== TAVOLINA E KAZINOSË (JESHIL EMERALD ME KORNIZË DRURI) ===================== */}
+      <div className="relative w-full max-w-[1100px] flex-1 my-1 bg-[radial-gradient(ellipse_at_center,_#2ec85a_0%,_#169c3e_55%,_#0b6623_100%)] border-[10px] sm:border-[16px] border-[#22160d] ring-4 ring-[#caa764] rounded-[50px] sm:rounded-[100px] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col justify-between p-3 sm:p-5 overflow-hidden">
+        
+        {/* Pjesa e sipërme e tavolinës me rrotën e POT dhe letrat në qendër-djathtas */}
+        <div className="w-full flex items-center justify-between px-2 sm:px-6 relative z-10 pt-2">
+          
+          {/* Majtas: Rrota e POT me kornizë druri dhe rrethin progresiv jeshil si në foto */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-[#1b1109] border-4 border-[#caa764] shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex items-center justify-center">
+              {/* Unaza rrethore e kohës / progresit me gradient jeshil */}
+              <div className="absolute inset-1 rounded-full border-4 border-[#22c55e] border-t-transparent animate-spin duration-3000 opacity-80" />
+              
+              {/* Shigjeta ndriçuese e radhës */}
+              {isMyTurn && (
+                <div className="absolute -right-3 sm:-right-4 top-1/2 -translate-y-1/2 text-emerald-400 text-xl sm:text-2xl animate-pulse">
+                  ◀
+                </div>
+              )}
+
+              {/* Përmbajtja e POT */}
+              <div className="flex flex-col items-center justify-center text-center p-1">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-200 tracking-wider">POT</span>
+                <span className="text-xs sm:text-sm font-black text-amber-400 flex items-center gap-0.5">
+                  🪙 200K
                 </span>
-              </div>
-              <div className="bg-[#0b1017] border border-[#c59a3f]/60 px-2 py-0.5 rounded-full text-[#d4af37] text-[10px] font-bold shadow">
-                {gameState.deck.length}
+                <span className="text-[9px] sm:text-[10px] font-bold text-amber-300">🪙 10,000</span>
+                <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-amber-500">JACKPOT</span>
               </div>
             </div>
 
-            {/* Karta e hapur horizontale */}
-            {gameState.starterCard && (
-              <div className="flex items-center justify-center">
-                <CardItem tile={gameState.starterCard} horizontal />
-              </div>
-            )}
+            {/* Tre pikat jeshile poshtë rrotës si në screenshot */}
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+            </div>
+          </div>
 
-            {/* Vendi i letrave të hedhura */}
-            <div className="flex items-center justify-center">
+          {/* Qendër-Djathtas: Tabakaja e letrave (Karta e Hapur e Hedhur dhe Kuverta e Mbyllur) */}
+          <div className="flex items-center gap-4 sm:gap-6 bg-black/20 p-3 rounded-3xl border border-white/20 shadow-inner">
+            {/* Karta e hedhur e hapur (Discard) */}
+            <div className="flex flex-col items-center gap-1.5">
               {topDiscard ? (
                 <div
                   onClick={() => {
@@ -542,95 +603,55 @@ export default function RummyGame({
                   }}
                   className={`transition-all ${
                     isMyTurn && !gameState.hasDrawn
-                      ? 'ring-2 ring-amber-400 cursor-pointer hover:scale-105'
+                      ? 'ring-4 ring-amber-400 scale-105 cursor-pointer'
                       : isMyTurn && gameState.hasDrawn && selectedIds.length === 1
-                      ? 'ring-2 ring-emerald-400 cursor-pointer hover:scale-105'
+                      ? 'ring-4 ring-emerald-400 scale-105 cursor-pointer'
                       : ''
                   }`}
-                  title={
-                    !gameState.hasDrawn
-                      ? 'Kliko për të tërhequr letrën e hedhur'
-                      : 'Kliko për të hedhur letrën e përzgjedhur'
-                  }
+                  title={!gameState.hasDrawn ? 'Tërhiq letrën e hedhur' : 'Hidh letrën e zgjedhur'}
                 >
-                  <CardItem tile={topDiscard} />
+                  <CasinoCardItem tile={topDiscard} />
                 </div>
               ) : (
-                <div
-                  onClick={() => {
-                    if (isMyTurn && gameState.hasDrawn && selectedIds.length === 1) {
-                      handleDiscard();
-                    }
-                  }}
-                  className={`w-[52px] h-[76px] sm:w-[62px] sm:h-[90px] rounded-[10px] border border-dashed border-slate-700/60 bg-black/20 flex items-center justify-center text-slate-500 text-[10px] ${
-                    isMyTurn && gameState.hasDrawn && selectedIds.length === 1
-                      ? 'border-amber-400/80 cursor-pointer hover:bg-amber-400/10'
-                      : ''
-                  }`}
-                >
+                <div className="w-[52px] h-[80px] sm:w-[64px] sm:h-[98px] rounded-[10px] border-2 border-dashed border-white/40 bg-black/30 flex items-center justify-center text-white/60 text-xs font-bold">
                   Bosh
                 </div>
               )}
             </div>
+
+            {/* Kuverta e kuqe me model (Closed Deck) */}
+            <CasinoDeckBack
+              count={gameState.deck.length}
+              onClick={() => handleDraw('deck')}
+              active={Boolean(isMyTurn && !gameState.hasDrawn)}
+            />
           </div>
 
-          {/* Teksti udhëzues i radhës */}
-          <div className="bg-[#0d141d] border border-[#c59a3f]/70 px-4 sm:px-6 py-1.5 rounded-full shadow-lg">
-            <span className="text-[#d4af37] text-xs sm:text-sm font-semibold tracking-wide">
-              {isMyTurn
-                ? !gameState.hasDrawn
-                  ? 'Radha jote — tërhiq'
-                  : canOpen
-                  ? `Radha jote — mund të hapesh (${displayPoints} pikë)!`
-                  : 'Radha jote — vendos ose hidh'
-                : `Radha e ${gameState.players[gameState.currentTurn]?.nickname || 'kundërshtarit'}`}
-            </span>
-          </div>
-
-          {/* Butoni "Meld / Open Hand" (Vendos: min 51) - Aktiv vetëm kur arrihen 51+ pikë */}
-          <div className="w-full flex justify-end pr-2 sm:pr-8 mt-2 sm:mt-1">
-            <button
-              type="button"
-              onClick={handlePlayMeld}
-              disabled={!canOpen}
-              aria-label="Meld / Open Hand"
-              className={`border-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-xl transition-all ${
-                canOpen
-                  ? 'border-amber-400 bg-amber-500/25 text-amber-200 ring-4 ring-amber-400/60 shadow-[0_0_25px_rgba(251,191,36,0.5)] animate-pulse hover:scale-105 cursor-pointer'
-                  : 'border-slate-800 bg-[#0d141e]/80 text-slate-500 opacity-60 cursor-not-allowed'
-              }`}
-            >
-              {canOpen
-                ? me?.hasOpened
-                  ? `✨ Vendos / Meld (${displayPoints} PTS)`
-                  : `✨ Hap Letrat / Meld (${displayPoints} PTS)`
-                : me?.hasOpened
-                ? `Vendos / Meld${displayPoints > 0 ? ` — ke ${displayPoints}` : ''}`
-                : `Vendos / Meld: min 51 — ke ${displayPoints}`}
-            </button>
+          {/* Kolona anësore me pikët vertikale si në screenshot (0 / 50 / 0) */}
+          <div className="hidden sm:flex flex-col items-center bg-[#1e1b4b]/80 border border-white/20 rounded-full px-2 py-3 shadow-lg gap-2 text-white font-black text-xs">
+            <span>0</span>
+            <span className="bg-[#7c3aed] text-white px-1.5 py-0.5 rounded font-black text-[10px]">50</span>
+            <span>0</span>
           </div>
         </div>
 
-        {/* Meldet e mia të vendosura në tavolinë (81 PTS si në Image 003) */}
+        {/* Meldet e hapura në tavolinë nëse ka */}
         {myMelds.length > 0 && (
-          <div className="w-full flex items-center gap-4 px-2 py-2 mb-2 bg-black/15 rounded-2xl border border-[#c59a3f]/20 z-10 overflow-x-auto">
-            <div className="text-[#d4af37] font-extrabold text-sm sm:text-base tracking-wider shrink-0 pl-1">
-              {myPoints} PTS
-            </div>
-            <div className="flex items-center gap-3 overflow-x-auto py-1">
+          <div className="w-full flex items-center justify-center gap-3 my-2 bg-black/25 p-2 rounded-2xl border border-emerald-400/30 overflow-x-auto z-10">
+            <span className="text-amber-300 font-black text-xs sm:text-sm uppercase tracking-wider pl-2">
+              Kombinimet ({myPoints} PTS):
+            </span>
+            <div className="flex items-center gap-2 overflow-x-auto">
               {myMelds.map((meld) => (
                 <div
                   key={meld.id}
                   onClick={() => handleAttachToMeld(meld.id)}
-                  className={`flex items-center -space-x-4 sm:-space-x-5 transition shrink-0 ${
-                    isMyTurn && selectedIds.length > 0
-                      ? 'hover:scale-105 cursor-pointer ring-1 ring-amber-400/50 rounded-lg p-0.5'
-                      : ''
+                  className={`flex items-center -space-x-4 transition shrink-0 ${
+                    isMyTurn && selectedIds.length > 0 ? 'hover:scale-105 cursor-pointer ring-2 ring-amber-400 rounded-lg' : ''
                   }`}
-                  title="Kliko për të shtuar letra"
                 >
                   {meld.tiles.map((t) => (
-                    <CardItem key={t.id} tile={t} small />
+                    <CasinoCardItem key={t.id} tile={t} small />
                   ))}
                 </div>
               ))}
@@ -638,49 +659,39 @@ export default function RummyGame({
           </div>
         )}
 
-        {/* Njoftim ndihmës kur bëhen 51 pikë */}
-        {isMyTurn && gameState.hasDrawn && canOpen && !me?.hasOpened && (
+        {/* ===================== SHIRITI I DEADWOOD / MELD SIPËR DORËS SË LOJTARIT ===================== */}
+        <div className="w-full flex items-center justify-center relative z-20 my-1">
+          {/* Pilli CYAN/BLUE: DEADWOOD 28/10 dhe BUTONI MELD */}
           <div
             onClick={handlePlayMeld}
-            className="w-full max-w-md mx-auto my-1 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/70 py-1.5 px-3 rounded-full text-center text-[#fbbf24] text-xs font-bold shadow-lg cursor-pointer hover:scale-102 transition flex items-center justify-center gap-1.5"
+            className={`cursor-pointer px-6 sm:px-10 py-1.5 rounded-full border-2 transition-all flex flex-col items-center justify-center shadow-[0_8px_25px_rgba(0,0,0,0.6)] ${
+              canOpen
+                ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 border-white text-slate-950 scale-105 animate-pulse'
+                : 'bg-gradient-to-b from-[#0284c7] to-[#0369a1] border-[#38bdf8] text-white hover:brightness-110'
+            }`}
+            title="Kliko për të hapur letrat (Meld)"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Ke {displayPoints} pikë! Kliko këtu ose te &quot;Hap Letrat / Meld&quot; për t&apos;i hapur letrat.</span>
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest leading-none">
+              {canOpen ? 'MELD / HAP LETRAT!' : 'DEADWOOD'}
+            </span>
+            <span className="text-sm sm:text-base font-black tracking-wider leading-none mt-0.5">
+              {canOpen ? `✨ ${displayMeldPoints} / 51 PTS` : `${deadwoodPoints} / 10`}
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* ===================== SHIRITI I POSHTËM (DORA & KONTROLLET) ===================== */}
-        <div className="w-full flex items-end justify-between relative z-20 pt-1">
-          {/* Ikonat majtas: Emoji dhe Statistikat */}
-          <div className="flex flex-col gap-2 shrink-0 pb-1">
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#121922] border border-[#c59a3f]/70 flex items-center justify-center text-[#d4af37] hover:bg-[#1a2330] hover:scale-105 transition shadow-lg cursor-pointer"
-              title="Dërgo reagim"
-            >
-              <Smile className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowStatsModal(true)}
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#121922] border border-[#c59a3f]/70 flex items-center justify-center text-[#d4af37] hover:bg-[#1a2330] hover:scale-105 transition shadow-lg cursor-pointer"
-              title="Statistikat e lojës"
-            >
-              <BarChart2 className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Dora e plotë e lojtarit */}
-          <div className="flex-1 flex justify-center items-end px-1 sm:px-3 overflow-x-auto min-h-[90px] sm:min-h-[110px] pb-1">
-            <div className="flex items-end -space-x-4 sm:-space-x-6 md:-space-x-7 pt-5">
-              {hand.map((tile) => (
-                <CardItem
+        {/* ===================== DORA E PLOTË E LOJTARIT ME RRATHËT ME NGJYRA ===================== */}
+        <div className="w-full flex items-end justify-center px-1 overflow-x-auto min-h-[90px] sm:min-h-[115px] z-20 pb-1">
+          <div className="flex items-end -space-x-3 sm:-space-x-5 md:-space-x-6 pt-6">
+            {hand.map((tile) => {
+              const groupColorIdx = meldedTileColorMap.get(tile.id);
+              return (
+                <CasinoCardItem
                   key={tile.id}
                   tile={tile}
                   selected={selectedIds.includes(tile.id)}
                   isNew={isMyTurn && gameState.lastDrawnTileId === tile.id}
+                  groupColorIdx={groupColorIdx}
                   onClick={() => toggleSelect(tile.id)}
                   onDoubleClick={() => {
                     if (isMyTurn && gameState.hasDrawn) {
@@ -692,42 +703,78 @@ export default function RummyGame({
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDrop(tile.id)}
                 />
-              ))}
-            </div>
-          </div>
-
-          {/* Butonat djathtas: Hidh dhe Rendit */}
-          <div className="flex flex-col items-end gap-2 shrink-0 pb-1">
-            {isMyTurn && gameState.hasDrawn && selectedIds.length === 1 && (
-              <button
-                type="button"
-                onClick={() => handleDiscard()}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] sm:text-xs px-3 py-1.5 rounded-xl shadow-lg transition cursor-pointer animate-pulse"
-              >
-                Hidh Letrën
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSort}
-              className="bg-[#121922] border border-[#c59a3f]/70 px-3 py-2 rounded-xl flex flex-col items-center justify-center text-[#d4af37] hover:bg-[#1a2330] hover:scale-105 transition shadow-lg cursor-pointer min-w-[56px] sm:min-w-[64px]"
-              title="Rendit dorën"
-            >
-              <ListOrdered className="w-4 h-4 sm:w-5 sm:h-5 mb-0.5" />
-              <span className="text-[10px] sm:text-xs font-bold">Rendit</span>
-            </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Modali i Emojive */}
-      {showEmojiPicker && (
-        <div className="absolute bottom-20 left-6 z-50 bg-[#121922] border border-[#c59a3f] p-3 rounded-2xl shadow-2xl flex gap-2">
-          {['😂', '👍', '🔥', '👏', '🍀', '👑', '😎', '🤐'].map((emoji) => (
+      {/* ===================== SHIRITI I POSHTËM (PROFILI, CHAT DHE BUTONI SORT) ===================== */}
+      <div className="w-full max-w-6xl flex items-center justify-between px-2 py-1 z-20">
+        
+        {/* Majtas: Butoni Chat me flluskë të verdhë si në foto */}
+        <button
+          onClick={() => setShowChatPopup(!showChatPopup)}
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-b from-[#f59e0b] to-[#d97706] border-2 border-white shadow-xl flex items-center justify-center text-white cursor-pointer hover:scale-105"
+          title="Chat & Emoji"
+        >
+          <MessageSquare className="w-5 h-5 fill-current" />
+        </button>
+
+        {/* Qendër: Profili i Lojtarit (GUEST) me shirit vjollcë dhe çipa si në screenshot */}
+        <div className="relative flex items-center bg-[#4a044e]/95 border-2 border-amber-400 px-3 sm:px-6 py-1 rounded-full shadow-[0_0_20px_rgba(251,191,36,0.6)]">
+          {/* Niveli Yll 1 */}
+          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-[10px] shadow border border-white -ml-2">
+            ⭐ 1
+          </div>
+
+          {/* Ikona qendrore e derrkucit me rreth blu */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0284c7] border-2 border-[#38bdf8] flex items-center justify-center text-sm shadow mx-2">
+            🐷
+          </div>
+
+          {/* Emri: GUEST ose Nickname */}
+          <span className="text-white font-black text-xs sm:text-sm tracking-wider uppercase mr-3">
+            {me?.nickname || 'GUEST'}
+          </span>
+
+          {/* Çipat: 900K dhe Xhevahirët: 100 */}
+          <div className="bg-[#2e1065] border border-amber-400/80 px-2 sm:px-3 py-0.5 rounded-full flex items-center gap-2 text-[10px] sm:text-xs font-black text-amber-300">
+            <span>🪙 900K</span>
+            <span className="text-purple-300">💎 100</span>
+          </div>
+        </div>
+
+        {/* Djathtas: Butoni SORT (Rendit) dhe Butoni Hidh */}
+        <div className="flex items-center gap-2">
+          {isMyTurn && gameState.hasDrawn && selectedIds.length === 1 && (
+            <button
+              onClick={() => handleDiscard()}
+              className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-3.5 py-2 rounded-xl shadow-lg animate-bounce cursor-pointer border border-white"
+            >
+              Hidh Letrën
+            </button>
+          )}
+
+          {/* Butoni SORT me dy letra si në foto */}
+          <button
+            onClick={handleSort}
+            className="flex items-center gap-1.5 bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] border-2 border-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xl text-white font-black text-xs sm:text-sm cursor-pointer hover:scale-105 transition"
+            title="Rendit dorën automatikisht"
+          >
+            <span className="text-base sm:text-lg">🂠</span>
+            <span>SORT</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Pop-up i Chat / Emoji */}
+      {showChatPopup && (
+        <div className="absolute bottom-16 left-4 z-50 bg-[#1e1b4b] border-2 border-amber-400 p-3 rounded-2xl shadow-2xl flex gap-2">
+          {['😂', '👍', '🔥', '👑', '🎉', '🍀', '😎', '🤐'].map((emoji) => (
             <button
               key={emoji}
-              onClick={() => sendEmojiReaction(emoji)}
+              onClick={() => sendReaction(emoji)}
               className="text-2xl hover:scale-125 transition cursor-pointer p-1"
             >
               {emoji}
@@ -736,62 +783,40 @@ export default function RummyGame({
         </div>
       )}
 
-      {/* Modali i Statistikave dhe Rregullave */}
-      {showStatsModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1722] border border-[#c59a3f] rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-base sm:text-lg font-bold text-[#d4af37] flex items-center gap-2">
-                <BarChart2 className="w-5 h-5" />
-                Statistikat & Rregullat
+      {/* Menu & Rregullat */}
+      {showMenu && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e1b4b] border-2 border-amber-400 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-purple-800">
+              <h3 className="text-lg font-black text-amber-300 flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-400" />
+                Rregullat e Rummy & Menu
               </h3>
-              <button
-                onClick={() => setShowStatsModal(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
+              <button onClick={() => setShowMenu(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="py-4 space-y-2">
-              <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-1">
-                Lojtarët në tavolinë
-              </div>
-              {gameState.playerOrder.map((id) => {
-                const p = gameState.players[id];
-                const pts = getPlayerMeldPoints(gameState, id);
-                const isCurrent = gameState.currentTurn === id;
-                return (
-                  <div
-                    key={id}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border ${
-                      isCurrent
-                        ? 'bg-amber-500/10 border-amber-400/50'
-                        : 'bg-slate-900/60 border-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold">{p.nickname}</span>
-                      <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-500/30">
-                        {p.rank || 'Bronz'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-slate-400">🂠 {p.hand.length} letra</span>
-                      <span className="font-bold text-[#d4af37]">{pts} PTS</span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="py-4 space-y-2 text-xs text-slate-200">
+              <p>• <strong>Kombinimet (Runs):</strong> Sekuenca prej 3+ letrave të së njëjtës shenjë (p.sh. 4♠ 5♠ 6♠ 7♠).</p>
+              <p>• <strong>Grupet (Sets):</strong> 3 ose 4 letra me të njëjtën vlerë dhe shenja të ndryshme.</p>
+              <p>• <strong>Hapja:</strong> Kërkon të paktën 51 pikë për hapjen e parë.</p>
+              <p>• <strong>Deadwood:</strong> Shuma e letrave që nuk bëjnë pjesë në asnjë kombinim.</p>
             </div>
-
-            <div className="bg-black/30 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1">
-              <div className="font-bold text-[#d4af37] text-xs mb-1">Rregullat e Remi 51 (JOL):</div>
-              <p>• Hapja e parë kërkon të paktën 51 pikë në sekuenca ose grupe.</p>
-              <p>• Sapo dora arrin 51 pikë, butoni &quot;Vendos&quot; aktivizohet për t&apos;i hapur letrat në tavolinë.</p>
-              <p>• Kartat JOL (Xhoker) zëvendësojnë çdo letër në kombinim.</p>
-              <p>• Pasi të hapesh, mund të shtosh letra te kombinimet ekzistuese në tavolinë.</p>
-              <p>• Çdo radhë nis me tërheqje dhe përfundon me hedhjen e 1 letre.</p>
+            <div className="pt-2 flex justify-between gap-3">
+              {onLeaveRoom && (
+                <button
+                  onClick={onLeaveRoom}
+                  className="flex-1 bg-red-600 hover:bg-red-500 py-2.5 rounded-xl font-bold text-xs"
+                >
+                  Dil nga Dhoma
+                </button>
+              )}
+              <button
+                onClick={() => setShowMenu(false)}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2.5 rounded-xl font-black text-xs"
+              >
+                Vazhdo Lojën
+              </button>
             </div>
           </div>
         </div>
@@ -799,19 +824,18 @@ export default function RummyGame({
 
       {/* Modali i Fitores */}
       {gameState.status === 'finished' && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0f1722] border-2 border-[#c59a3f] rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-[0_0_50px_rgba(212,175,55,0.4)] animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#2e1065] border-4 border-amber-400 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-[0_0_60px_rgba(251,191,36,0.6)] animate-in zoom-in duration-300">
             <Trophy className="w-16 h-16 text-amber-400 mx-auto mb-3 animate-bounce" />
-            <h2 className="text-2xl font-black text-white mb-1">JOL! FITORE!</h2>
-            <p className="text-amber-300 font-bold text-sm mb-4">
+            <h2 className="text-3xl font-black text-white mb-1">RUMMY! FITORE!</h2>
+            <p className="text-amber-300 font-extrabold text-base mb-5">
               {gameState.winnerName} fitoi lojën (+150 pikë)!
             </p>
 
             {isHost && onRestartGame && (
               <button
-                type="button"
                 onClick={onRestartGame}
-                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 rounded-2xl shadow-xl transition cursor-pointer text-sm"
+                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-black py-3 rounded-2xl shadow-xl transition cursor-pointer text-sm"
               >
                 <RotateCcw className="w-4 h-4" />
                 Luaj Përsëri
