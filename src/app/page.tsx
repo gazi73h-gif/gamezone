@@ -39,8 +39,8 @@ const GAMES: GameInfo[] = [
     badge: 'Popullore'
   },
   {
-    id: 'vizato',
-    title: 'Vizato & Qëllo',
+    id: 'shah',
+    title: 'Shah (Chess)',
     subtitle: 'Vizato fjalën dhe gjeje në chat',
     players: '2 - 8 Lojtarë',
     icon: <Palette className="w-8 h-8" />,

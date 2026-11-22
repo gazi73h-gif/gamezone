@@ -7,8 +7,8 @@ import YambGame from '../../../components/YambGame';
 import { YambGameState, createEmptySheet } from '../../../lib/yambLogic';
 import PishpirikGame from '../../../components/PishpirikGame';
 import { initPishpirikGame, PishpirikGameState } from '../../../lib/pishpirikLogic';
-import VizatoGame from '../../../components/VizatoGame';
-import { initVizatoGame, VizatoGameState } from '../../../lib/vizatoLogic';
+import ChessGame from '../../../components/ChessGame';
+import { initChessGame, ChessGameState } from '../../../lib/chessLogic';
 import UnoGame from '../../../components/UnoGame';
 import { initUnoGame, UnoGameState } from '../../../lib/unoLogic';
 import LudoGame from '../../../components/LudoGame';
@@ -34,7 +34,7 @@ interface Room {
 const GAME_NAMES: Record<string, string> = {
   yamb: 'Yamb (Jamb)',
   pishpirik: 'Pishpirik',
-  vizato: 'Vizato & Qëllo',
+  shah: 'Shah (Chess)',
   uno: 'UNO Shqip',
   ludo: 'Ludo (Mos u zemëro)',
   rummy: 'Rummy / Jol',
@@ -152,8 +152,8 @@ export default function RoomLobbyPage() {
         .from('rooms')
         .update({ status: 'playing', game_state: initialState })
         .eq('code', roomCode);
-    } else if (room.game_type === 'vizato') {
-      const initialState = initVizatoGame(
+    } else if (room.game_type === 'shah') {
+      const initialState = initChessGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
 
@@ -245,7 +245,7 @@ export default function RoomLobbyPage() {
     );
   }
 
-  if (room.status === 'playing' && room.game_type === 'vizato' && room.game_state) {
+  if (room.status === 'playing' && room.game_type === 'shah' && room.game_state) {
     return (
       <div className="min-h-screen bg-slate-950 text-white pb-10">
         <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
@@ -262,8 +262,8 @@ export default function RoomLobbyPage() {
         </div>
 
         <div className="px-3">
-          <VizatoGame
-            gameState={room.game_state as VizatoGameState}
+          <ChessGame
+            gameState={room.game_state as ChessGameState}
             currentPlayerId={currentPlayerId}
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
