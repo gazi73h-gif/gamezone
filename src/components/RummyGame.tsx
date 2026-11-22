@@ -26,11 +26,11 @@ function playTileSound(kind: 'draw' | 'meld' | 'win') {
   } catch {}
 }
 
-function Tile3D({ tile, selected, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
+function Tile3D({ tile, selected, isNew, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
   const c = TILE_COLOR[tile.color];
   return (
     <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl bg-gradient-to-b from-[#fffdf7] via-[#f7edd8] to-[#e2cfa8] border border-amber-200 flex flex-col items-center justify-between transition-all ${small ? 'w-8 h-11 sm:w-9 sm:h-12 p-1 shadow-[0_3px_0_#9c7a49,0_5px_8px_rgba(0,0,0,0.5)]' : 'w-11 h-16 sm:w-12 sm:h-[68px] p-1.5 shadow-[0_5px_0_#9c7a49,0_8px_14px_rgba(0,0,0,0.65)] cursor-pointer hover:-translate-y-1'} ${selected ? '-translate-y-3 ring-3 ring-amber-400 shadow-[0_8px_0_#d97706,0_14px_20px_rgba(0,0,0,0.8)] z-20' : isNew ? 'ring-2 ring-emerald-400 bg-gradient-to-b from-emerald-50 via-[#efe3c8] to-[#cbb589] shadow-[0_5px_0_#6b5331,0_0_15px_rgba(52,211,153,0.45)]' : ''}`}>
-            {tile.isJoker ? (
+            {isNew && !small && <span className="absolute -top-2.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[8px] font-black shadow">I RI</span>}{tile.isJoker ? (
         <div className="flex flex-col items-center justify-center h-full text-amber-500">
           <Crown className={small ? 'w-4 h-4 fill-amber-400' : 'w-6 h-6 fill-amber-400'} />
           <span className="text-[9px] font-black tracking-tighter text-amber-700">{tile.number > 0 ? `${tile.number} JOL` : 'JOL'}</span>
@@ -142,10 +142,6 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
         <div className="flex flex-wrap items-center justify-center gap-5 py-2">
           {gameState.indicatorTile && (
             <div className="flex items-center gap-3 bg-black/30 px-3.5 py-2 rounded-2xl border border-amber-400/30">
-              <div className="flex flex-col items-center gap-1">
-                <Tile3D tile={{ ...gameState.indicatorTile, isJoker: false }} small />
-                <span className="text-[10px] font-bold text-emerald-100/75">Treguesi</span>
-              </div>
               <div className="flex flex-col items-center gap-1">
                 <Tile3D tile={{ id: 'joker_preview', number: gameState.jokerNumber || 1, color: gameState.jokerColor || 'red', isJoker: true }} small />
                 <span className="text-[10px] font-black text-amber-300">Xholi (JOL)</span>
