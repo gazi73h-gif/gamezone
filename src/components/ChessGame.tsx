@@ -7,14 +7,18 @@ function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
     const now = ctx.currentTime;
-    if (type === 'move') { osc.type = 'triangle'; osc.frequency.setValueAtTime(280, now); osc.frequency.exponentialRampToValueAtTime(110, now + 0.08); gain.gain.setValueAtTime(0.25, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08); osc.start(now); osc.stop(now + 0.09); }
-    else if (type === 'capture') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(190, now); osc.frequency.exponentialRampToValueAtTime(65, now + 0.14); gain.gain.setValueAtTime(0.35, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14); osc.start(now); osc.stop(now + 0.15); }
-    else if (type === 'check') { osc.type = 'sine'; osc.frequency.setValueAtTime(620, now); osc.frequency.setValueAtTime(840, now + 0.11); gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25); osc.start(now); osc.stop(now + 0.26); }
-    else { osc.type = 'triangle'; osc.frequency.setValueAtTime(523, now); osc.frequency.setValueAtTime(659, now + 0.12); osc.frequency.setValueAtTime(784, now + 0.24); gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45); osc.start(now); osc.stop(now + 0.46); }
+    const tone = (freq: number, endFreq: number, dur: number, delay: number, wave: OscillatorType, vol: number) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = wave; o.frequency.setValueAtTime(freq, now + delay);
+      if (endFreq !== freq) o.frequency.exponentialRampToValueAtTime(endFreq, now + delay + dur);
+      g.gain.setValueAtTime(vol, now + delay); g.gain.exponentialRampToValueAtTime(0.001, now + delay + dur);
+      o.connect(g); g.connect(ctx.destination); o.start(now + delay); o.stop(now + delay + dur + 0.02);
+    };
+    if (type === 'move') { tone(190, 68, 0.09, 0, 'triangle', 0.45); tone(620, 140, 0.04, 0, 'sine', 0.25); }
+    else if (type === 'capture') { tone(150, 48, 0.14, 0, 'sawtooth', 0.5); tone(420, 95, 0.08, 0.03, 'triangle', 0.45); }
+    else if (type === 'check') { tone(130, 55, 0.22, 0, 'triangle', 0.5); tone(740, 740, 0.28, 0.02, 'sine', 0.35); tone(987.77, 987.77, 0.35, 0.14, 'sine', 0.4); }
+    else { tone(523.25, 523.25, 0.22, 0, 'triangle', 0.35); tone(659.25, 659.25, 0.22, 0.13, 'triangle', 0.35); tone(783.99, 783.99, 0.25, 0.26, 'triangle', 0.4); tone(1046.5, 1046.5, 0.55, 0.4, 'sine', 0.45); }
   } catch {}
 }
 interface ChessGameProps { gameState: ChessGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: ChessGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
