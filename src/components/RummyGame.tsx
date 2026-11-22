@@ -140,15 +140,6 @@ export default function RummyGame({ gameState, currentPlayerId, isHost, onUpdate
 
       <div className="bg-gradient-to-br from-[#14532d] via-[#166534] to-[#0f3d21] p-4 sm:p-6 rounded-3xl border-4 border-[#5c361c] shadow-[inset_0_4px_20px_rgba(0,0,0,0.6),0_15px_35px_rgba(0,0,0,0.8)] flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-center gap-5 py-2">
-          {gameState.indicatorTile && (
-            <div className="flex items-center gap-3 bg-black/30 px-3.5 py-2 rounded-2xl border border-amber-400/30">
-              <div className="flex flex-col items-center gap-1">
-                <Tile3D tile={{ id: 'joker_preview', number: gameState.jokerNumber || 1, color: gameState.jokerColor || 'red', isJoker: true }} small />
-                <span className="text-[10px] font-black text-amber-300">Xholi (JOL)</span>
-              </div>
-            </div>
-          )}
-
           <button type="button" onClick={() => handleDraw('deck')} disabled={!isMyTurn || gameState.hasDrawn} className={`flex flex-col items-center gap-1.5 px-5 py-3 rounded-2xl bg-gradient-to-b from-[#fffdf7] to-[#e2cfa8] border-2 border-amber-300 shadow-[0_6px_0_#9c7a49,0_12px_20px_rgba(0,0,0,0.6)] transition ${isMyTurn && !gameState.hasDrawn ? 'ring-4 ring-amber-400 animate-pulse cursor-pointer hover:scale-105' : 'opacity-80 cursor-not-allowed'}`}>
             <Layers className="w-6 h-6 text-amber-800" />
             <span className="text-xs font-black text-slate-900">Pako ({gameState.deck.length})</span>
