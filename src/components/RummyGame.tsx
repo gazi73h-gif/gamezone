@@ -4,32 +4,25 @@ import { BOT_RUMMY_ID, RummyGameState, RummyTile, Suit, addToRummyMeld, discardR
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, Layers, ArrowDownToLine, Sparkles, ArrowUpDown, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 interface RummyGameProps { gameState: RummyGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: RummyGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
-const SUIT_UI: Record<Suit, { sym: string; color: string }> = { hearts: { sym: '♥', color: 'text-red-600' }, diamonds: { sym: '♦', color: 'text-red-600' }, spades: { sym: '♠', color: 'text-slate-900' }, clubs: { sym: '♣', color: 'text-slate-900' } };
+const SUIT_UI: Record<Suit, { sym: string; color: string }> = { hearts: { sym: '♥', color: 'text-red-600' }, diamonds: { sym: '♦', color: 'text-blue-600' }, spades: { sym: '♠', color: 'text-slate-900' }, clubs: { sym: '♣', color: 'text-emerald-700' } };
 function cardRank(n: number) { return n === 1 ? 'A' : n === 11 ? 'J' : n === 12 ? 'Q' : n === 13 ? 'K' : String(n); }
 function CardView({ tile, selected, isNew, onClick, small, draggable, onDragStart, onDragOver, onDrop }: { tile: RummyTile; selected?: boolean; isNew?: boolean; onClick?: () => void; small?: boolean; draggable?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void }) {
   const s = SUIT_UI[tile.suit || 'spades'];
-  const isFace = !tile.isJoker && tile.number >= 11;
-  const bg = isNew ? 'bg-gradient-to-b from-amber-100 via-amber-200 to-amber-300 ring-2 ring-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.9)]' : 'bg-gradient-to-b from-white to-slate-100 shadow-lg';
+  const bg = isNew ? 'bg-gradient-to-b from-amber-100 via-amber-200 to-amber-300 ring-2 ring-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.95)]' : 'bg-gradient-to-b from-[#ffffff] to-[#f1f5f9] shadow-[0_4px_10px_rgba(0,0,0,0.65)]';
   return (
-    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl border border-slate-300 flex flex-col justify-between transition-all ${bg} ${small ? 'w-8 h-12 sm:w-10 sm:h-14 p-1' : 'w-11 h-16 sm:w-15 sm:h-22 p-1 cursor-pointer hover:-translate-y-1.5 shrink-0'} ${selected ? '-translate-y-4 scale-105 ring-2 ring-amber-400 shadow-2xl z-30' : ''}`}>
+    <button type="button" onClick={onClick} draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} className={`relative select-none rounded-xl border-2 border-slate-300/90 flex flex-col justify-between transition-all ${bg} ${small ? 'w-8 h-12 sm:w-10 sm:h-14 p-1' : 'w-12 h-18 sm:w-15 sm:h-22 p-1.5 cursor-pointer hover:-translate-y-1.5 shrink-0'} ${selected ? '-translate-y-4 scale-105 ring-2 ring-amber-400 shadow-2xl z-30' : ''}`}>
       {tile.isJoker ? (
-        <div className="w-full h-full rounded-lg border border-amber-400/70 bg-gradient-to-b from-purple-50 to-amber-50 flex flex-col items-center justify-center">
-          <Crown className={small ? 'w-4 h-4 fill-amber-400 text-amber-600' : 'w-7 h-7 fill-amber-400 text-amber-600'} />
-          <span className="text-[8px] sm:text-[9px] font-black tracking-tight text-purple-900">JOKER</span>
+        <div className="w-full h-full rounded-lg border border-amber-400 bg-gradient-to-b from-amber-50 to-purple-100 flex flex-col items-center justify-center">
+          <Crown className={small ? 'w-4 h-4 fill-amber-400 text-amber-600' : 'w-6 h-6 fill-amber-400 text-amber-600'} />
+          <span className="text-[8px] font-black text-purple-900">JOL</span>
         </div>
       ) : (
         <>
-          <div className={`flex flex-col items-center leading-none font-black ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} ${s.color}`}><span>{cardRank(tile.number)}</span><span>{s.sym}</span></div>
-          {isFace ? (
-            <div className="mx-auto my-auto w-8 h-10 sm:w-10 sm:h-12 rounded-md border border-amber-500/50 bg-gradient-to-b from-amber-50 via-red-50 to-slate-100 flex flex-col items-center justify-center shadow-inner">
-              <Crown className={`w-3.5 h-3.5 ${tile.number === 13 ? 'text-amber-500 fill-amber-400' : tile.number === 12 ? 'text-rose-500 fill-rose-400' : 'text-sky-600 fill-sky-400'}`} />
-              <span className={`font-serif font-black text-sm sm:text-base leading-none ${s.color}`}>{cardRank(tile.number)}</span>
-              <span className={`text-[10px] leading-none ${s.color}`}>{s.sym}</span>
-            </div>
-          ) : (
-            <div className={`mx-auto my-auto leading-none ${tile.number === 1 ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-2xl'} ${s.color}`}>{s.sym}</div>
-          )}
-          <div className={`flex flex-col items-center leading-none font-black rotate-180 ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} ${s.color}`}><span>{cardRank(tile.number)}</span><span>{s.sym}</span></div>
+          <div className={`flex items-center gap-0.5 leading-none font-black ${small ? 'text-[11px]' : 'text-sm sm:text-base'} ${s.color}`}>
+            <span>{cardRank(tile.number)}</span>
+            <span>{s.sym}</span>
+          </div>
+          <div className={`self-end leading-none ${small ? 'text-base' : 'text-2xl sm:text-3xl'} ${s.color}`}>{s.sym}</div>
         </>
       )}
     </button>
