@@ -39,8 +39,11 @@ const GAMES: GameInfo[] = [
     badge: 'Popullore'
   },
   {
-    $11 - 2 Lojtarë',
-    icon: <Crown className="w-8 h-8" />,
+    id: 'shah',
+    title: 'Shah (Chess)',
+    subtitle: 'Lojë klasike 1v1 e strategjisë 3D ose kundër AI',
+    players: '1 - 2 Lojtarë',
+    icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8"><path d="M19 22H5v-2h14v2M17.16 8.26A4.96 4.96 0 0 0 15 6.45V4l-2.85 1.9C11.45 5.65 10.74 5.5 10 5.5C6.96 5.5 4.5 7.96 4.5 11c0 1.48.59 2.83 1.54 3.82L4.5 18h15l-1.58-5.53c.48-.68.78-1.5.78-2.4c0-.66-.19-1.27-.54-1.81M10 10a1 1 0 1 1 0-2a1 1 0 0 1 0 2Z"/></svg>,
     color: 'from-amber-500 to-amber-700',
   },
   {
