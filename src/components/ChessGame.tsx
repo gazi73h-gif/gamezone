@@ -115,8 +115,8 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
         })}
       </div>
 
-      <div className="w-full max-w-[520px] aspect-square mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-4 border-slate-800">
-        <div className="w-full h-full grid grid-cols-8 grid-rows-8">
+      <div className="w-full max-w-[520px] aspect-square mx-auto p-3 sm:p-4 bg-gradient-to-br from-[#3b2313] via-[#4a2c18] to-[#29170b] rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] border-2 border-amber-500/60">
+        <div className="w-full h-full grid grid-cols-8 grid-rows-8 rounded-xl overflow-hidden border-2 border-amber-500/50">
           {rows.map((r) => cols.map((c) => {
             const isLight = (r + c) % 2 === 0;
             const piece = gameState.board[r]?.[c];
@@ -128,8 +128,8 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
             const toC = gameState.lastMove?.to?.at(1);
             const isLast = (fromR === r && fromC === c) || (toR === r && toC === c);
             const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
-            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-[#eef4fa]' : 'bg-[#4b7399]';
-            const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-[#4b7399]' : 'text-[#eef4fa]';
+            const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-[#fde047]' : isLast ? (isLight ? 'bg-[#fef08a]' : 'bg-[#eab308]') : isLight ? 'bg-[#f5ebd6]' : 'bg-[#5c3a21]';
+            const txtCol = isLast || isSel ? 'text-slate-900' : isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
             return (
               <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-colors ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
                 {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold select-none ${txtCol}`}>{8 - r}</span>}
