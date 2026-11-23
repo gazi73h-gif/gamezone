@@ -63,7 +63,6 @@ export default function RoomLobbyPage() {
 
   // Koha e rifillimit të fundit, që dy kërkesa të njëpasnjëshme të mos e rifillojnë lojën dy herë
   const lastRestartRef = useRef<number>(0);
-  const [playingWithBot, setPlayingWithBot] = useState<boolean>(false);
 
   // Rivendos kohën e aktivitetit sa herë ka veprim nga lojtari ose përditësim loje
   const resetActivity = useCallback(() => {
@@ -172,7 +171,6 @@ export default function RoomLobbyPage() {
               .from('rooms')
               .update({ status: 'playing', game_state: gs })
               .eq('code', roomCode);
-            setPlayingWithBot(true);
           }
         }
 
@@ -193,7 +191,6 @@ export default function RoomLobbyPage() {
               .from('rooms')
               .update({ status: 'playing', game_state: gs })
               .eq('code', roomCode);
-            setPlayingWithBot(false);
           }
         }
 
@@ -389,12 +386,8 @@ export default function RoomLobbyPage() {
     </div>
   ) : null;
 
-  // Baneri "Duke luajtur me Bot AI"
-  const BotBanner = playingWithBot ? (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9998] bg-indigo-700/95 border border-indigo-400 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 max-w-[90vw] text-center">
-      🤖 Duke luajtur me Bot AI — sapo të futet një lojtar online, loja rifillon automatikisht!
-    </div>
-  ) : null;
+  // Baneri "Duke luajtur me Bot AI" — u largua sipas kërkesës
+  const BotBanner = null;
 
   if (!room) {
     return (
