@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Trophy, Medal, Crown, RefreshCw } from 'lucide-react';
+import { Trophy, Crown, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface LeaderEntry {
@@ -10,6 +10,12 @@ interface LeaderEntry {
   points: number;
   last_game: string | null;
 }
+
+const MEDAL = [
+  { ring: 'from-[#ffe08a] to-[#f5a300]', text: 'text-[#3a2400]' },
+  { ring: 'from-[#eef2ff] to-[#a5b4fc]', text: 'text-[#1e1b4b]' },
+  { ring: 'from-[#ffc8a2] to-[#c2652a]', text: 'text-[#3b1600]' },
+];
 
 export default function Leaderboard() {
   const [leaders, setLeaders] = useState<Array<LeaderEntry>>([]);
@@ -33,100 +39,63 @@ export default function Leaderboard() {
   }, []);
 
   return (
-    <div className="bg-slate-900/90 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/40">
-            <Trophy className="w-5 h-5 text-amber-400" />
-          </div>
+    <div className="gz-panel rounded-[28px] p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-gold to-gold-2 shadow-[0_4px_0_#b86a00]">
+            <Trophy className="w-5 h-5 text-[#3a2400]" />
+          </span>
           <div>
-            <h2 className="text-lg sm:text-xl font-extrabold text-white">
-              Kampionët e GameZone
-            </h2>
-            <p className="text-xs text-slate-400">
-              Luaj me të njëjtën nofkë për të mbledhur fitore & pikë
-            </p>
+            <h2 className="font-display font-semibold text-xl sm:text-2xl">Kampionët</h2>
+            <p className="text-xs sm:text-sm text-mute">Luaj me të njëjtën nofkë për të mbledhur pikë</p>
           </div>
         </div>
-
         <button
           onClick={fetchLeaders}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+          className="grid place-items-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-mute hover:text-ink transition cursor-pointer"
           title="Rifresko renditjen"
+          aria-label="Rifresko renditjen"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {leaders.length === 0 ? (
-        <div className="text-center py-8 bg-slate-950/60 rounded-2xl border border-slate-800">
-          <Crown className="w-8 h-8 text-amber-400/60 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-slate-300">
-            Ende nuk ka kampionë të regjistruar!
-          </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Fito një lojë dhe emri yt do të shfaqet i pari këtu.
-          </p>
+        <div className="text-center py-10 rounded-3xl border border-dashed border-white/15">
+          <Crown className="w-9 h-9 text-gold/70 mx-auto mb-2" />
+          <p className="font-display font-semibold text-lg">Ende pa kampionë!</p>
+          <p className="text-sm text-mute mt-1">Fito një lojë dhe emri yt del i pari këtu.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ol className="grid sm:grid-cols-2 gap-2">
           {leaders.map((player, index) => {
-            const isFirst = index === 0;
-            const isSecond = index === 1;
-            const isThird = index === 2;
-
+            const medal = MEDAL[index];
             return (
-              <div
+              <li
                 key={player.nickname}
-                className={`flex items-center justify-between px-4 py-3 rounded-2xl border transition ${
-                  isFirst
-                    ? 'bg-gradient-to-r from-amber-500/20 to-yellow-600/10 border-amber-400/50'
-                    : isSecond
-                    ? 'bg-slate-800/80 border-slate-600/60'
-                    : isThird
-                    ? 'bg-amber-900/20 border-amber-700/40'
-                    : 'bg-slate-950/60 border-slate-800'
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border ${
+                  index === 0 ? 'bg-gold/10 border-gold/40' : 'bg-night/40 border-white/5'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 bg-slate-900 border border-slate-700">
-                    {isFirst ? (
-                      <Crown className="w-4 h-4 text-amber-400" />
-                    ) : isSecond ? (
-                      <Medal className="w-4 h-4 text-slate-300" />
-                    ) : isThird ? (
-                      <Medal className="w-4 h-4 text-amber-600" />
-                    ) : (
-                      <span className="text-slate-400">#{index + 1}</span>
-                    )}
-                  </div>
-
-                  <div className="truncate">
-                    <p className="font-bold text-sm text-white truncate">
-                      {player.nickname}
-                    </p>
-                    {player.last_game && (
-                      <p className="text-[11px] text-slate-400 truncate">
-                        Fitorja e fundit: {player.last_game}
-                      </p>
-                    )}
-                  </div>
+                <span
+                  className={`grid place-items-center w-9 h-9 shrink-0 rounded-full font-display font-bold ${
+                    medal ? `bg-gradient-to-br ${medal.ring} ${medal.text}` : 'bg-white/5 text-mute'
+                  }`}
+                >
+                  {index === 0 ? <Crown className="w-4 h-4" /> : index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold truncate">{player.nickname}</p>
+                  {player.last_game && <p className="text-xs text-mute truncate">{player.last_game}</p>}
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right">
-                    <span className="block text-sm font-black text-amber-400">
-                      {player.points} pikë
-                    </span>
-                    <span className="block text-[11px] text-emerald-400 font-semibold">
-                      {player.wins} {player.wins === 1 ? 'fitore' : 'fitore'}
-                    </span>
-                  </div>
+                <div className="text-right shrink-0">
+                  <span className="block font-display font-semibold text-gold leading-tight">{player.points}</span>
+                  <span className="block text-[11px] text-mint font-bold">{player.wins} fitore</span>
                 </div>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       )}
     </div>
   );

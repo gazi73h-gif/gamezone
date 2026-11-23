@@ -4,7 +4,7 @@ export interface LudoPlayer {
   id: string;
   nickname: string;
   color: LudoColor;
-  tokens: number[]; // -1 = baze, 0..51 = rruga kryesore (relative), 52..56 = shtegu i shtepise, 57 = ne shtepi
+  tokens: number[]; // -1 = bazë, 0..50 = rruga kryesore (relative), 51..55 = shtegu i shtëpisë, 56 = në shtëpi
 }
 
 export interface LudoGameState {
@@ -17,6 +17,22 @@ export interface LudoGameState {
   status: 'playing' | 'finished';
   winnerId: string | null;
   lastActionText: string;
+  gameId?: number; // ndryshon me çdo lojë të re
+  rev?: number; // rritet me çdo ruajtje, që të injorohen përgjigjet e vjetra nga serveri
+  v?: number; // 2 = rruga pa fushën e tepërt para shtëpisë
+}
+
+export const LAST_MAIN = 50; // fusha e fundit e rrugës kryesore, para kthesës në shtëpi
+export const FINISH = 56;
+
+// Lojërat e nisura me versionin e vjetër kishin një fushë më shumë (52..57); i kthen në numërimin e ri
+export function normalizeLudoState(state: LudoGameState): LudoGameState {
+  if (state.v === 2) return state;
+  const players: Record<string, LudoPlayer> = {};
+  Object.entries(state.players).forEach(([id, p]) => {
+    players[id] = { ...p, tokens: p.tokens.map((t) => (t > LAST_MAIN + 1 ? t - 1 : t)) };
+  });
+  return { ...state, players, v: 2 };
 }
 
 const COLORS_ORDER: LudoColor[] = ['red', 'blue', 'yellow', 'green'];
@@ -32,7 +48,7 @@ const START_OFFSETS: Record<LudoColor, number> = {
 export const SAFE_GLOBAL_CELLS: number[] = Array.of(0, 8, 13, 21, 26, 34, 39, 47);
 
 export function toGlobalPos(color: LudoColor, relPos: number): number {
-  if (relPos < 0 || relPos > 51) return -1;
+  if (relPos < 0 || relPos > LAST_MAIN) return -1;
   return (relPos + START_OFFSETS[color]) % 52;
 }
 
@@ -68,6 +84,9 @@ export function initLudoGame(
     hasRolled: false,
     consecutiveSixes: 0,
     status: 'playing',
+    gameId: Date.now(),
+    rev: 0,
+    v: 2,
     winnerId: null,
     lastActionText: `Loja filloi! Hedh zarin ${players[firstId]?.nickname || ''}.`,
   };
@@ -78,7 +97,7 @@ export function getMovableTokenIndices(player: LudoPlayer, dice: number): number
   player.tokens.forEach((pos, idx) => {
     if (pos === -1 && dice === 6) {
       indices.push(idx);
-    } else if (pos >= 0 && pos < 57 && pos + dice <= 57) {
+    } else if (pos >= 0 && pos < FINISH && pos + dice <= FINISH) {
       indices.push(idx);
     }
   });
@@ -178,16 +197,16 @@ export function moveLudoToken(
   }
 
   me.tokens[tokenIndex] = newPos;
-  if (newPos === 57) reachedHome = true;
+  if (newPos === FINISH) reachedHome = true;
 
   // Kontrollo ngrenien e kundershtarit nese eshte ne rrugen kryesore (0..50) dhe jo ne kuti te sigurt
-  if (newPos >= 0 && newPos <= 50) {
+  if (newPos >= 0 && newPos <= LAST_MAIN) {
     const myGlobal = toGlobalPos(me.color, newPos);
     if (!SAFE_GLOBAL_CELLS.includes(myGlobal)) {
       Object.values(updatedPlayers).forEach((other) => {
         if (other.id === playerId) return;
         other.tokens = other.tokens.map((otherPos) => {
-          if (otherPos >= 0 && otherPos <= 50) {
+          if (otherPos >= 0 && otherPos <= LAST_MAIN) {
             const otherGlobal = toGlobalPos(other.color, otherPos);
             if (otherGlobal === myGlobal) {
               capturedSomeone = true;
@@ -200,8 +219,8 @@ export function moveLudoToken(
     }
   }
 
-  // Kontrollo fitoren (te 4 guret ne 57)
-  if (me.tokens.every((t) => t === 57)) {
+  // Kontrollo fitoren (të 4 gurët në shtëpi)
+  if (me.tokens.every((t) => t === FINISH)) {
     return {
       ...state,
       players: updatedPlayers,
@@ -232,3 +251,14 @@ export function moveLudoToken(
   };
 }
 
+// Hedh zarin dhe, kur s'ka çka të zgjidhet, e lëviz gurin në të njëjtën ruajtje
+export function rollAndAutoMove(state: LudoGameState, playerId: string): LudoGameState {
+  const rolled = rollLudoDice(state, playerId);
+  if (rolled === state || !rolled.hasRolled || rolled.diceValue === null) return rolled;
+
+  const player = rolled.players[playerId];
+  const movable = getMovableTokenIndices(player, rolled.diceValue);
+  // Gurët në të njëjtin vend (p.sh. të gjithë në bazë) janë e njëjta lëvizje
+  const choices = new Set(movable.map((i) => player.tokens[i]));
+  return choices.size === 1 ? moveLudoToken(rolled, playerId, movable[0]) : rolled;
+}
