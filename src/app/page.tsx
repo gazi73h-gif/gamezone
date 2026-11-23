@@ -4,6 +4,7 @@ import GameArt, { GAME_THEME } from '../components/GameArt';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
+import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom } from '../lib/lobby';
 import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight } from 'lucide-react';
 
 interface GameInfo { id: string; title: string; subtitle: string; players: string; badge?: string; }
@@ -28,64 +29,29 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [openRooms, setOpenRooms] = useState<Array<{ code: string; game_type: string; playerCount: number; hostName: string }>>(Array.of());
+  const [openRooms, setOpenRooms] = useState<LobbyRoom[]>([]);
 
-  const fetchOpenRooms = async () => {
-    const { data: roomsData } = await supabase
-      .from('rooms')
-      .select('code, game_type, created_at')
-      .eq('status', 'waiting')
-      .order('created_at', { ascending: false })
-      .limit(15);
+  // Dhomat e hapura: i shpallin vetë krijuesit sa janë online dhe kanë vend të lirë
+  useEffect(() => {
+    const ch = supabase.channel(LOBBY_CHANNEL);
+    ch.on('presence', { event: 'sync' }, () => setOpenRooms(lobbyRoomsFrom(ch.presenceState()))).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
-    if (!roomsData || roomsData.length === 0) {
-      setOpenRooms([]);
-      return;
-    }
-
-    // Mbylle dhe pastro automatikisht çdo dhomë pa aktivitet më të vjetër se 5 minuta
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    const staleCodes = roomsData
-      .filter((r) => r.created_at && new Date(r.created_at).getTime() < fiveMinutesAgo)
-      .map((r) => r.code);
-
-    if (staleCodes.length > 0) {
-      await supabase.from('room_players').delete().in('room_code', staleCodes);
-      await supabase.from('rooms').delete().in('code', staleCodes);
-    }
-
-    const activeRooms = roomsData.filter(
-      (r) => !r.created_at || new Date(r.created_at).getTime() >= fiveMinutesAgo
-    );
-
-    const codes = activeRooms.map((r) => r.code);
-    if (codes.length === 0) {
-      setOpenRooms([]);
-      return;
-    }
-
-    const { data: playersData } = await supabase
-      .from('room_players')
-      .select('room_code, nickname, seat_order')
-      .in('room_code', codes);
-
-    const formatted = activeRooms
-      .map((r) => {
-        const rp = (playersData || []).filter((p) => p.room_code === r.code);
-        const host = rp.find((p) => p.seat_order === 1) || rp[0];
-        return {
-          code: r.code,
-          game_type: r.game_type,
-          playerCount: rp.length,
-          hostName: host?.nickname || 'Lojtar',
-        };
-      })
-      .filter((r) => r.playerCount > 0);
-
-    setOpenRooms(formatted);
-  };
-
-  useEffect(() => { fetchOpenRooms(); const interval = setInterval(fetchOpenRooms, 3000); return () => clearInterval(interval); }, []);
+  // Pastro dhomat në pritje që askush s'i ka nisur për më shumë se 5 minuta
+  useEffect(() => {
+    const cleanup = async () => {
+      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data } = await supabase.from('rooms').select('code').eq('status', 'waiting').lt('created_at', cutoff).limit(50);
+      const codes = (data || []).map((r) => r.code);
+      if (codes.length === 0) return;
+      await supabase.from('room_players').delete().in('room_code', codes);
+      await supabase.from('rooms').delete().in('code', codes);
+    };
+    cleanup();
+    const interval = setInterval(cleanup, 60000);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => {
     let storedId = localStorage.getItem('gamezone_player_id');
     if (!storedId) { storedId = 'player_' + Math.random().toString(36).substring(2, 10); localStorage.setItem('gamezone_player_id', storedId); }

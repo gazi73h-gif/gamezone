@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { BOT_IDS, MAX_SEATS, LOBBY_CHANNEL, isJoinable, hasBot } from '../../../lib/lobby';
 import YambGame from '../../../components/YambGame';
 import { YambGameState, createEmptySheet } from '../../../lib/yambLogic';
 import PishpirikGame from '../../../components/PishpirikGame';
@@ -151,7 +153,6 @@ export default function RoomLobbyPage() {
         setPlayers(playersData);
 
         // Gjej vetëm lojtarët real (jo-bot)
-        const BOT_IDS = ['BOT_YAMB', 'BOT_PISH', 'BOT_AI', 'BOT_UNO', 'BOT_LUDO', 'BOT_RUMMY'];
         const realPlayers = playersData.filter(
           (p) => !BOT_IDS.includes(p.player_id)
         );
@@ -176,8 +177,7 @@ export default function RoomLobbyPage() {
 
         // AUTO-RESTART me lojtarë real: vetëm kur loja po luhej me bot dhe tani ka 2+ lojtarë real.
         // (Më parë numri i lojtarëve fillonte nga 0 pas çdo refresh, prandaj hosti e fshinte lojën pa dashje.)
-        const stateText = JSON.stringify(roomData.game_state ?? '');
-        const playingWithBot = roomData.status === 'playing' && BOT_IDS.some((id) => stateText.includes(id));
+        const playingWithBot = roomData.status === 'playing' && hasBot(roomData.game_state);
         if (
           isHostNow &&
           realCount >= 2 &&
@@ -277,6 +277,35 @@ export default function RoomLobbyPage() {
       userEvents.forEach((ev) => window.removeEventListener(ev, handleUserEvent));
     };
   }, [roomCode, router, inactivityWarning, resetActivity]);
+
+  // Shpalle dhomën në faqen kryesore sa kohë krijuesi është këtu dhe ka vend të lirë
+  const amHost = !!room && !!currentPlayerId && room.host_id === currentPlayerId;
+  const realPlayerCount = players.filter((p) => !BOT_IDS.includes(p.player_id)).length;
+  const hostNick = players.find((p) => p.player_id === room?.host_id)?.nickname || 'Lojtar';
+  const lobbyEntry = amHost && room && isJoinable(room.status, room.game_state, room.game_type, realPlayerCount)
+    ? JSON.stringify({ code: room.code, game_type: room.game_type, hostName: hostNick, playerCount: realPlayerCount })
+    : '';
+  const lobbyChannelRef = useRef<RealtimeChannel | null>(null);
+  const [lobbyReady, setLobbyReady] = useState(false);
+
+  useEffect(() => {
+    if (!amHost) return;
+    const ch = supabase.channel(LOBBY_CHANNEL, { config: { presence: { key: roomCode } } });
+    ch.subscribe((status) => setLobbyReady(status === 'SUBSCRIBED'));
+    lobbyChannelRef.current = ch;
+    return () => {
+      lobbyChannelRef.current = null;
+      setLobbyReady(false);
+      supabase.removeChannel(ch);
+    };
+  }, [amHost, roomCode]);
+
+  useEffect(() => {
+    const ch = lobbyChannelRef.current;
+    if (!ch || !lobbyReady) return;
+    if (lobbyEntry) ch.track(JSON.parse(lobbyEntry));
+    else ch.untrack();
+  }, [lobbyEntry, lobbyReady]);
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -395,6 +424,24 @@ export default function RoomLobbyPage() {
         {InactivityWarningBanner}
         <span className="w-12 h-12 rounded-full border-4 border-white/10 border-t-gold animate-spin" />
         <span className="font-display text-lg">Duke ngarkuar dhomën...</span>
+      </div>
+    );
+  }
+
+  const waitingToJoin =
+    room.status === 'playing' &&
+    !!currentPlayerId &&
+    room.host_id !== currentPlayerId &&
+    hasBot(room.game_state) &&
+    !JSON.stringify(room.game_state).includes(currentPlayerId);
+  if (waitingToJoin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        {InactivityWarningBanner}
+        <span className="w-12 h-12 rounded-full border-4 border-white/10 border-t-gold animate-spin" />
+        <span className="font-display text-xl">Duke u bashkuar në lojë...</span>
+        <span className="text-sm text-mute">Loja po rifillon me ty dhe {hostNick}.</span>
+        <button onClick={handleLeaveRoom} className="mt-2 text-sm font-bold text-mute hover:text-ink underline cursor-pointer">Dil</button>
       </div>
     );
   }
@@ -587,8 +634,7 @@ export default function RoomLobbyPage() {
 
   // 7. Lobby (Pritja e lojtarëve)
   const isHost = room.host_id === currentPlayerId;
-  const SEATS: Record<string, number> = { yamb: 4, pishpirik: 4, shah: 2, uno: 6, ludo: 4, rummy: 4 };
-  const emptySeats = Math.max(0, (SEATS[room.game_type] ?? 4) - players.length);
+  const emptySeats = Math.max(0, (MAX_SEATS[room.game_type] ?? 4) - players.length);
 
   return (
     <div className="relative min-h-screen">
