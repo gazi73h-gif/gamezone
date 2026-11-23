@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'GameZone - Lojëra Tavoline & Letra',
     short_name: 'GameZone',
-    description: 'Yamb, Pishpirik, Shah 3D, UNO Shqip, Ludo dhe Rummy / Jol në kohë reale',
+    description: 'Yamb, Pishpirik, Shah 3D, UNO Shqip, Ludo dhe Okey në kohë reale',
     start_url: '/',
     display: 'standalone',
     background_color: '#0d0a24',

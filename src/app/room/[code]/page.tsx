@@ -44,7 +44,7 @@ const GAME_NAMES: Record<string, string> = {
   shah: 'Shah (Chess)',
   uno: 'UNO Shqip',
   ludo: 'Ludo (Mos u zemëro)',
-  rummy: 'Rummy / Jol',
+  rummy: 'Okey',
 };
 
 // Kohëzgjatja maksimale e mosaktivitetit: 5 minuta (300,000 ms)

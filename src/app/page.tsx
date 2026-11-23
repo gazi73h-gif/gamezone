@@ -12,7 +12,7 @@ interface GameInfo { id: string; title: string; subtitle: string; players: strin
 const GAMES: GameInfo[] = [
   { id: 'ludo', title: 'Ludo', subtitle: 'Mos u zemëro! Çoji 4 figurat në shtëpi', players: '2 - 4', badge: 'Popullore' },
   { id: 'pishpirik', title: 'Pishpirik', subtitle: 'Loja tradicionale shqiptare me letra', players: '2 ose 4' },
-  { id: 'rummy', title: 'Rummy / Jol', subtitle: '108 letra + 4 Joker, hap 51 pikë', players: '2 - 4' },
+  { id: 'rummy', title: 'Okey', subtitle: 'Okey klasik me tregues, Okey dhe 7 çifte', players: '2 - 4' },
   { id: 'uno', title: 'UNO Shqip', subtitle: 'Letra me ngjyra dhe karta speciale', players: '2 - 6' },
   { id: 'yamb', title: 'Yamb', subtitle: 'Zarat dhe tabela e pikëve', players: '1 - 4', badge: 'E re' },
   { id: 'shah', title: 'Shah', subtitle: 'Strategji 1 me 1 ose kundër AI', players: '1 - 2' },
@@ -126,7 +126,7 @@ export default function HomePage() {
             <span className="bg-gradient-to-r from-gold via-[#ff8f6b] to-[#ff5db1] bg-clip-text text-transparent">kudo që janë.</span>
           </h1>
           <p className="text-mute text-base sm:text-lg mt-4 max-w-md">
-            Ludo, Pishpirik, Rummy, UNO, Yamb dhe Shah. Krijo një dhomë, ndaje kodin dhe fillo lojën.
+            Ludo, Okey, Pishpirik, UNO, Yamb dhe Shah. Krijo një dhomë, ndaje kodin dhe fillo lojën.
           </p>
           <ul className="flex flex-wrap gap-2 mt-6 text-sm font-bold">
             <li className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full"><Zap className="w-4 h-4 text-gold" /> Pa regjistrim</li>

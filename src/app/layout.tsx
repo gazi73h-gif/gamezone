@@ -8,7 +8,7 @@ const nunito = Nunito({ subsets: ['latin', 'latin-ext'], variable: '--font-nunit
 
 export const metadata: Metadata = {
   title: 'GameZone - Lojëra Online Multiplayer në Shqip',
-  description: 'Luaj Yamb, Pishpirik, Vizato & Qëllo, UNO, Ludo dhe Rummy me shokë në kohë reale.',
+  description: 'Luaj Yamb, Pishpirik, Vizato & Qëllo, UNO, Ludo dhe Okey me shokë në kohë reale.',
 };
 
 export const viewport: Viewport = {
