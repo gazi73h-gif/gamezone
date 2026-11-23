@@ -3,8 +3,9 @@ import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   LudoColor, LudoGameState,
   getMovableTokenIndices, moveLudoToken, rollAndAutoMove, toGlobalPos,
-  normalizeLudoState, LAST_MAIN, FINISH,
+  normalizeLudoState, LAST_MAIN, FINISH, isLudoBot, ludoStandings,
 } from '@/lib/ludoLogic';
+import { StaleStateError } from '@/lib/roomSync';
 import { recordWin } from '@/lib/supabase';
 import { RotateCcw, Trophy } from 'lucide-react';
 
@@ -247,20 +248,22 @@ export default function LudoGame({
         await onUpdateState(saved);
         setSaving(false);
         return;
-      } catch {
+      } catch (err) {
+        if (err instanceof StaleStateError) break;
         if (attempt < SAVE_ATTEMPTS) await new Promise((res) => setTimeout(res, 500 * attempt));
+        else setSaveFailed(true);
       }
     }
     setGameState(serverRef.current);
     setShown(positionsOf(serverRef.current));
     setSaving(false);
-    setSaveFailed(true);
   };
 
   /* bot turn */
-  const botReady = isHost && !busy && gameState.status === 'playing' && gameState.currentTurn === 'BOT_LUDO';
+  const botReady = isHost && !busy && gameState.status === 'playing' && isLudoBot(gameState.currentTurn);
   const playBot = useEffectEvent(() => {
-    const bot = gameState.players['BOT_LUDO'];
+    const bot = gameState.players[gameState.currentTurn];
+    if (!bot) return;
     if (!gameState.hasRolled) return void commit(rollAndAutoMove(gameState, bot.id));
     if (gameState.diceValue === null) return;
     const idx = getMovableTokenIndices(bot, gameState.diceValue).at(0);
@@ -322,13 +325,24 @@ export default function LudoGame({
             {w ? <Pawn color={w.color} /> : <Trophy className="w-16 h-16 text-gold mx-auto" />}
           </div>
           <h2 className="font-display font-bold text-3xl mb-1">Loja përfundoi!</h2>
-          <p className="text-gold font-display font-semibold text-xl mb-6">👑 {w?.nickname || 'Lojtari'} fitoi!</p>
-          {isHost && onRestartGame && (
+          <p className="text-gold font-display font-semibold text-xl mb-5">👑 {w?.nickname || 'Lojtari'} fitoi!</p>
+          <ol className="text-left space-y-1.5 mb-6">
+            {ludoStandings(gameState).map((row, i) => (
+              <li key={row.id} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${i === 0 ? 'bg-gold/15 border border-gold/40' : 'bg-white/5'}`}>
+                <span className="w-5 font-display font-bold text-mute">{i + 1}</span>
+                <span className="w-5 h-7 shrink-0"><Pawn color={row.color} /></span>
+                <span className="flex-1 font-bold truncate">{row.id === currentPlayerId ? 'Ti' : row.nickname}</span>
+                <span className="text-xs font-bold text-mute">{row.home}/4 në shtëpi</span>
+              </li>
+            ))}
+          </ol>
+          {onRestartGame && (
             <button onClick={onRestartGame}
               className="gz-btn inline-flex items-center gap-2 font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer">
               <RotateCcw className="w-5 h-5" /> Luaj përsëri
             </button>
           )}
+          <p className="text-xs text-mute mt-3">Dhoma mbetet e hapur — lojtarët e rinj mund të hyjnë.</p>
         </div>
       </div>
     );

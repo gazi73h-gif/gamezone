@@ -18,6 +18,8 @@ import GameArt from '../../../components/GameArt';
 import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
+import { saveRoomState } from '../../../lib/roomSync';
+import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
 import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
 
@@ -110,11 +112,8 @@ export default function RoomLobbyPage() {
       } else if (gameType === 'ludo') {
         return initLudoGame(withBot ? [mapped[0]] : mapped);
       } else if (gameType === 'rummy') {
-        return initRummyGame(
-          withBot
-            ? [mapped[0], { id: 'BOT_RUMMY', nickname: '🤖 Bot Rummy' }]
-            : mapped
-        );
+        // vendet bosh (deri në 4) i zënë botët
+        return initRummyGame(withBot ? [mapped[0]] : mapped);
       }
       return null;
     },
@@ -175,10 +174,30 @@ export default function RoomLobbyPage() {
           }
         }
 
-        // AUTO-RESTART me lojtarë real: vetëm kur loja po luhej me bot dhe tani ka 2+ lojtarë real.
+        // Ludo & Rummy: lojtari i ri zë vendin e botit / një vend të lirë, ai që largohet zëvendësohet nga boti.
+        // Loja vazhdon pa u rifilluar. (Vetëm nëse hosti është në listë, që një listë bosh të mos i largojë të gjithë.)
+        const seatGame = SEAT_GAMES.includes(roomData.game_type);
+        if (
+          seatGame &&
+          isHostNow &&
+          roomData.status === 'playing' &&
+          realPlayers.some((p) => p.player_id === storedHostId)
+        ) {
+          const next = syncSeats(roomData.game_type, roomData.game_state, realPlayers);
+          if (next) {
+            try {
+              await saveRoomState(roomCode, next);
+            } catch {
+              // dikush tjetër e ndryshoi lojën ndërkohë; provohet sërish në kontrollin e radhës
+            }
+          }
+        }
+
+        // Lojërat e tjera: rifillo kur loja po luhej me bot dhe tani ka 2+ lojtarë real.
         // (Më parë numri i lojtarëve fillonte nga 0 pas çdo refresh, prandaj hosti e fshinte lojën pa dashje.)
         const playingWithBot = roomData.status === 'playing' && hasBot(roomData.game_state);
         if (
+          !seatGame &&
           isHostNow &&
           realCount >= 2 &&
           (roomData.status === 'waiting' || playingWithBot) &&
@@ -321,10 +340,12 @@ export default function RoomLobbyPage() {
         .eq('room_code', roomCode)
         .eq('player_id', currentPlayerId);
     }
-    // Nëse ishte hosti ose nuk mbeti asnjë lojtar, fshi dhomën menjëherë
-    const remaining = players.filter((p) => p.player_id !== currentPlayerId);
-    if (remaining.length === 0 || room?.host_id === currentPlayerId) {
+    // Dhoma fshihet vetëm kur s'mbetet askush; nëse largohet hosti, dhoma i kalon lojtarit të radhës
+    const remaining = players.filter((p) => p.player_id !== currentPlayerId && !BOT_IDS.includes(p.player_id));
+    if (remaining.length === 0) {
       await supabase.from('rooms').delete().eq('code', roomCode);
+    } else if (room?.host_id === currentPlayerId) {
+      await supabase.from('rooms').update({ host_id: remaining[0].player_id }).eq('code', roomCode);
     }
     router.push('/');
   };
@@ -428,19 +449,34 @@ export default function RoomLobbyPage() {
     );
   }
 
-  const waitingToJoin =
+  const outsideGame =
     room.status === 'playing' &&
+    !!room.game_state &&
     !!currentPlayerId &&
     room.host_id !== currentPlayerId &&
-    hasBot(room.game_state) &&
     !JSON.stringify(room.game_state).includes(currentPlayerId);
-  if (waitingToJoin) {
+  const seatGame = SEAT_GAMES.includes(room.game_type);
+  const canTakeSeat = seatGame ? hasFreeSeat(room.game_type, room.game_state) : hasBot(room.game_state);
+  if (outsideGame && (canTakeSeat || !seatGame)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
         {InactivityWarningBanner}
         <span className="w-12 h-12 rounded-full border-4 border-white/10 border-t-gold animate-spin" />
-        <span className="font-display text-xl">Duke u bashkuar në lojë...</span>
-        <span className="text-sm text-mute">Loja po rifillon me ty dhe {hostNick}.</span>
+        <span className="font-display text-xl">{canTakeSeat ? 'Duke u bashkuar në lojë...' : 'Loja është plot'}</span>
+        <span className="text-sm text-mute">
+          {!canTakeSeat ? 'Prit derisa të lirohet një vend.' : seatGame ? 'Po të zihet vendi në tavolinë.' : `Loja po rifillon me ty dhe ${hostNick}.`}
+        </span>
+        <button onClick={handleLeaveRoom} className="mt-2 text-sm font-bold text-mute hover:text-ink underline cursor-pointer">Dil</button>
+      </div>
+    );
+  }
+
+  if (outsideGame && seatGame && !canTakeSeat) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        {InactivityWarningBanner}
+        <span className="font-display text-2xl">Tavolina është plot</span>
+        <span className="text-sm text-mute max-w-xs">Të gjitha vendet janë zënë nga lojtarë. Sapo të largohet dikush, do të hysh automatikisht.</span>
         <button onClick={handleLeaveRoom} className="mt-2 text-sm font-bold text-mute hover:text-ink underline cursor-pointer">Dil</button>
       </div>
     );
@@ -449,16 +485,17 @@ export default function RoomLobbyPage() {
   // 1. Rummy / Remi 51 (JOL)
   if (room.status === 'playing' && room.game_type === 'rummy' && room.game_state) {
     return (
-      <div className="relative min-h-screen bg-[#080d12] text-white">
+      <div className="relative h-dvh overflow-hidden text-white">
         {InactivityWarningBanner}
         {BotBanner}
         <RummyGame
           gameState={room.game_state as RummyGameState}
           currentPlayerId={currentPlayerId}
           isHost={room.host_id === currentPlayerId}
+          roomCode={room.code}
           onUpdateState={async (ns) => {
             resetActivity();
-            await supabase.from('rooms').update({ game_state: ns }).eq('code', roomCode);
+            await saveRoomState(roomCode, ns);
           }}
           onRestartGame={handleStartGame}
           onLeaveRoom={handleLeaveRoom}
@@ -492,8 +529,7 @@ export default function RoomLobbyPage() {
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
               resetActivity();
-              const { error } = await supabase.from('rooms').update({ game_state: newState }).eq('code', roomCode);
-              if (error) throw error;
+              await saveRoomState(roomCode, newState);
             }}
             onRestartGame={handleStartGame}
           />

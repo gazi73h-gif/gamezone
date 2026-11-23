@@ -24,10 +24,14 @@ export function hasBot(gameState: unknown): boolean {
   return BOT_IDS.some((id) => text.includes(id));
 }
 
-// Mund të hyjë dikush tjetër? Në pritje, ose duke luajtur me bot (loja rifillon kur hyn lojtari).
+// Mund të hyjë dikush tjetër? Në pritje, ose kur ka vend të lirë / vend me bot.
+// Ludo dhe Rummy: lojtari zë vendin pa e rifilluar lojën. Lojërat e tjera rifillojnë me lojtarin e ri.
 export function isJoinable(status: string, gameState: unknown, gameType: string, realPlayers: number): boolean {
   if (realPlayers >= (MAX_SEATS[gameType] ?? 4)) return false;
-  return status === 'waiting' || (status === 'playing' && hasBot(gameState));
+  if (status === 'waiting') return true;
+  if (status !== 'playing') return false;
+  if (gameType === 'ludo') return true;
+  return hasBot(gameState);
 }
 
 export function lobbyRoomsFrom(state: Record<string, unknown[]>): LobbyRoom[] {

@@ -58,7 +58,7 @@ export function initLudoGame(
   // Nëse ka vetëm 1 lojtar real, shto Bot-in automatikisht
   const rawList =
     playersList.length < 2
-      ? [playersList[0], { id: 'BOT_LUDO', nickname: '🤖 Bot Ludo' }]
+      ? [playersList[0], { id: 'BOT_LUDO_blue', nickname: '🤖 Bot' }]
       : playersList;
   const limited = rawList.slice(0, 4);
   const players: Record<string, LudoPlayer> = {};
@@ -261,4 +261,62 @@ export function rollAndAutoMove(state: LudoGameState, playerId: string): LudoGam
   // Gurët në të njëjtin vend (p.sh. të gjithë në bazë) janë e njëjta lëvizje
   const choices = new Set(movable.map((i) => player.tokens[i]));
   return choices.size === 1 ? moveLudoToken(rolled, playerId, movable[0]) : rolled;
+}
+
+/* ───────────── vendet: hyrja dhe largimi i lojtarëve ───────────── */
+
+export const isLudoBot = (id: string) => id.startsWith('BOT_LUDO');
+export const LUDO_SEATS = 4;
+
+// Lojtari i ri merr vendin (ngjyrën dhe figurat) e lojtarit/botit që largohet
+export function replaceLudoSeat(state: LudoGameState, oldId: string, newId: string, nickname: string): LudoGameState {
+  const old = state.players[oldId];
+  if (!old || state.players[newId]) return state;
+  const swap = (id: string | null) => (id === oldId ? newId : id);
+  const players: Record<string, LudoPlayer> = {};
+  state.playerOrder.forEach((id) => {
+    players[swap(id)!] = id === oldId ? { ...old, id: newId, nickname } : state.players[id];
+  });
+  return {
+    ...state,
+    players,
+    playerOrder: state.playerOrder.map((id) => swap(id)!),
+    currentTurn: swap(state.currentTurn)!,
+    winnerId: swap(state.winnerId),
+    lastActionText: `👋 ${nickname} zuri vendin e ${old.nickname}.`,
+  };
+}
+
+// Lojtari i ri merr një ngjyrë të lirë; të tjerët i ruajnë figurat dhe radhën
+export function addLudoSeat(state: LudoGameState, id: string, nickname: string): LudoGameState {
+  if (state.players[id] || state.playerOrder.length >= LUDO_SEATS) return state;
+  const used = new Set(Object.values(state.players).map((p) => p.color));
+  const color = COLORS_ORDER.find((c) => !used.has(c));
+  if (!color) return state;
+  const players = { ...state.players, [id]: { id, nickname, color, tokens: [-1, -1, -1, -1] } };
+  const playerOrder = [...state.playerOrder, id].sort(
+    (a, b) => COLORS_ORDER.indexOf(players[a].color) - COLORS_ORDER.indexOf(players[b].color)
+  );
+  return { ...state, players, playerOrder, lastActionText: `👋 ${nickname} u bashkua në lojë!` };
+}
+
+// Kur lojtari largohet, boti vazhdon me figurat e tij derisa të vijë dikush tjetër
+export function botifyLudoSeat(state: LudoGameState, id: string): LudoGameState {
+  const p = state.players[id];
+  if (!p || isLudoBot(id)) return state;
+  const next = replaceLudoSeat(state, id, `BOT_LUDO_${p.color}`, '🤖 Bot');
+  return { ...next, lastActionText: `${p.nickname} doli — boti luan në vend të tij.` };
+}
+
+// Renditja: fituesi, pastaj sipas gurëve në shtëpi dhe rrugës së bërë
+export function ludoStandings(state: LudoGameState) {
+  return state.playerOrder
+    .map((id) => {
+      const p = state.players[id];
+      const home = p.tokens.filter((t) => t === FINISH).length;
+      const progress = p.tokens.reduce((s, t) => s + Math.max(t + 1, 0), 0);
+      return { id, nickname: p.nickname, color: p.color, home, progress };
+    })
+    .sort((a, b) =>
+      Number(b.id === state.winnerId) - Number(a.id === state.winnerId) || b.home - a.home || b.progress - a.progress);
 }
