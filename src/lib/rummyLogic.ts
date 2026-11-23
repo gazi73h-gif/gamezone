@@ -525,3 +525,34 @@ export function sortHand(hand: RummyTile[], by: 'runs' | 'groups'): RummyTile[] 
     return by === 'runs' ? ci(a) - ci(b) || a.number - b.number : a.number - b.number || ci(a) - ci(b);
   });
 }
+
+// Hapja/vendosja nga rafti: çdo grup gurësh të vendosur njëri pas tjetrit kontrollohet veçmas
+export function playRummyMeldGroups(state: RummyGameState, playerId: string, groups: string[][]): { state: RummyGameState; error?: string } {
+  if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) return { state, error: 'Merr një gur fillimisht!' };
+  const p = state.players[playerId];
+  if (!p || groups.length === 0) return { state };
+  const byId = new Map(p.hand.map((t) => [t.id, t]));
+  const checked = groups.map((ids) => validateSingleMeld(ids.map((id) => byId.get(id)).filter((t): t is RummyTile => !!t)));
+  if (checked.some((c) => !c.valid)) return { state, error: 'Një nga kombinimet në raft nuk është i vlefshëm.' };
+  const total = checked.reduce((a, c) => a + c.points, 0);
+  if (!p.hasOpened && total < OPEN_MIN) return { state, error: `Për hapje duhen min. ${OPEN_MIN} pikë (ke ${total}).` };
+  const used = new Set(groups.flat());
+  const hand = p.hand.filter((t) => !used.has(t.id));
+  if (hand.length === 0) return { state, error: 'Duhet të të mbetet një gur për ta hedhur.' };
+  const melds: RummyMeld[] = checked.map((c, i) => ({
+    id: `m${state.round}_${state.melds.length + i}`,
+    ownerId: playerId,
+    ownerName: p.nickname,
+    tiles: c.sorted!,
+    type: c.type!,
+    points: c.points,
+  }));
+  return {
+    state: {
+      ...state,
+      melds: [...state.melds, ...melds],
+      players: { ...state.players, [playerId]: { ...p, hand, hasOpened: true } },
+      lastActionText: `✨ ${p.nickname} ${p.hasOpened ? 'vendosi' : 'u hap me'} ${total} pikë!`,
+    },
+  };
+}
