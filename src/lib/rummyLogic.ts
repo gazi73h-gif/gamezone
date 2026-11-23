@@ -426,7 +426,7 @@ export function discardRummyTile(state: RummyGameState, playerId: string, tileId
     currentTurn: next,
     hasDrawn: false,
     lastDrawnTileId: null,
-    lastActionText: `${p.nickname} hodhi ${tile.isJoker ? 'Jokerin' : tile.number}. Radha e ${state.players[next].nickname}.`,
+    lastActionText: `${p.nickname} hodhi një gur. Radha e ${state.players[next].nickname}.`,
   };
 }
 

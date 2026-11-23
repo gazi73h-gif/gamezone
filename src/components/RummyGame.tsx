@@ -526,7 +526,8 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
                       onPointerDown={(e) => topDiscard && onPointerDown(e, 'discard')}
                       className={`rk-discard ${drag?.over === 'discard' ? 'rk-over' : ''} ${canDraw && topDiscard ? 'rk-can' : ''} ${canAct && drag?.kind === 'tile' ? 'rk-target' : ''}`}
                     >
-                      {topDiscard ? <Tile tile={topDiscard} /> : <span className="text-white/60 text-[10px] font-bold text-center leading-tight">Hidh<br />këtu</span>}
+                      {/* guri i hedhur qëndron përmbys: askush s’e sheh cili është */}
+                      {topDiscard ? <span className="rk-discard-pile"><TileBack /></span> : <span className="text-white/60 text-[10px] font-bold text-center leading-tight">Hidh<br />këtu</span>}
                     </div>
                     <span className="rk-label">Toka</span>
                   </div>
@@ -627,7 +628,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
       {/* guri që po tërhiqet */}
       {drag && (
         <div className="fixed z-50 pointer-events-none" style={{ left: drag.x, top: drag.y, transform: 'translate(-50%, -60%) rotate(-4deg) scale(1.12)' }}>
-          {draggingTile ? <Tile tile={draggingTile} ghost /> : drag.kind === 'discard' && topDiscard ? <Tile tile={topDiscard} ghost /> : <TileBack />}
+          {draggingTile ? <Tile tile={draggingTile} ghost /> : <TileBack />}
         </div>
       )}
 
@@ -858,6 +859,7 @@ function RummyStyles() {
         border-radius: 12px; border: 2px dashed rgba(255,255,255,0.45);
         display: grid; place-items: center; background: rgba(0,0,0,0.18);
       }
+      .rk-discard-pile .rk-back { transform: rotate(-6deg); box-shadow: 0 2px 0 #c9b98f, 0 4px 0 #ebe0c2, 0 6px 8px rgba(0,0,0,0.4); }
       .rk-target { border-color: #ffc83d; background: rgba(255,200,61,0.15); }
       .rk-over { border-color: #ffc83d !important; border-style: solid !important; background: rgba(255,200,61,0.35) !important; }
 
