@@ -1,7 +1,16 @@
 // Rummy me gurë (pllaka): 4 ngjyra × 1..13 × 2 = 104 gurë.
 // Në fillim të çdo raundi zbulohet guri tregues; Jokeri është numri pasues i së njëjtës ngjyrë
-// (13 → 1). Të dy kopjet e atij guri janë Joker. Hapja e parë kërkon min. 51 pikë.
-// Loja ka 4 raunde; pikët negative (gurët që mbeten në dorë) mblidhen, fiton më i ulëti.
+// (13 → 1). Të dy kopjet e atij guri janë Joker.
+//
+// Rregullat standarde të Rummy-t:
+// - shpërndarja: 14 gurë secili (me 7 gurë hapja 51 është pothuajse e pamundur); guri i parë i tokës kthehet i hapur
+// - radha: merr një gur (stiva ose toka) → vendos/shto kombinime (opsionale) → hidh një gur
+// - guri i marrë nga toka s'mund të hidhet në të njëjtën radhë
+// - hapja e parë kërkon min. 51 pikë
+// - raundi mbaron sapo dikush vendos ose hedh gurin e fundit
+// - fituesi merr pikët e gurëve që u mbetën të tjerëve (1–10 sa numri, 11–13 = 10, Jokeri 15);
+//   "Rummy" (të gjithë gurët në një radhë, pa kombinime më parë) = pikë dyfishe
+// - fiton ndeshjen i pari që arrin 100 pikë
 
 export type TileColor = 'red' | 'blue' | 'black' | 'orange';
 export const TILE_COLORS: TileColor[] = ['red', 'blue', 'black', 'orange'];
@@ -30,11 +39,11 @@ export interface RummyPlayer {
 }
 
 export interface RummyGameState {
-  version: 2;
+  version: 3;
   gameId: number;
   rev: number;
   round: number;
-  totalRounds: number;
+  targetScore: number;
   deck: RummyTile[];
   indicator: RummyTile;
   joker: { color: TileColor; number: number };
@@ -45,28 +54,37 @@ export interface RummyGameState {
   currentTurn: string;
   hasDrawn: boolean;
   lastDrawnTileId: string | null;
+  takenFromDiscardId: string | null; // s'mund të hidhet në të njëjtën radhë
+  openedAtTurnStart: boolean; // për "Rummy": a kishte kombinime para kësaj radhe
   status: 'playing' | 'roundOver' | 'finished';
-  scores: Record<string, number[]>; // pikët negative për çdo raund
+  scores: Record<string, number[]>; // pikët e fituara në çdo raund
   roundWinnerId: string | null;
+  roundPoints: number;
+  wentRummy: boolean;
   winnerId: string | null;
   winnerName: string | null;
   lastActionText: string;
 }
 
 export const RUMMY_SEATS = 4;
-export const TOTAL_ROUNDS = 4;
+export const TARGET_SCORE = 100;
 export const OPEN_MIN = 51;
-export const HAND_SIZE = 14;
-export const JOKER_PENALTY = 30;
-export const UNOPENED_PENALTY = 100;
+export const JOKER_POINTS = 15;
 
 export const isRummyBot = (id: string) => id.startsWith('BOT_RUMMY');
 
-// Lojërat e vjetra me letra nuk kanë tregues; ato duhet të rifillojnë
+// Lojërat me letra ose me rregullat e mëparshme duhet të fillojnë nga e para
 export function isTileRummyState(s: unknown): s is RummyGameState {
   const st = s as Partial<RummyGameState> | null;
-  return !!st && st.version === 2 && !!st.indicator;
+  return !!st && st.version === 3 && !!st.indicator;
 }
+
+export const HAND_SIZE = 14;
+export const dealSize = () => HAND_SIZE;
+
+// 1–10 sa numri, 11–13 vlejnë 10 (si J, Q, K)
+export const tilePoints = (n: number) => (n >= 11 ? 10 : n);
+export const handValue = (hand: RummyTile[]) => hand.reduce((s, t) => s + (t.isJoker ? JOKER_POINTS : tilePoints(t.number)), 0);
 
 /* ───────────── gurët ───────────── */
 
@@ -117,7 +135,7 @@ export function validateSingleMeld(tiles: RummyTile[]): MeldCheck {
     plain.every((t) => t.number === n0) &&
     new Set(plain.map((t) => t.color)).size === plain.length
   ) {
-    return { valid: true, type: 'group', points: n0 * tiles.length, sorted: [...plain, ...jokers] };
+    return { valid: true, type: 'group', points: tilePoints(n0) * tiles.length, sorted: [...plain, ...jokers] };
   }
 
   const c0 = plain[0].color;
@@ -145,7 +163,7 @@ export function validateSingleMeld(tiles: RummyTile[]): MeldCheck {
     for (let n = start; n <= end; n++) {
       const t = sorted.find((x) => x.number === n);
       out.push(t ?? js.pop()!);
-      points += n;
+      points += tilePoints(n);
     }
     return { valid: true, type: 'run', points, sorted: out };
   }
@@ -185,7 +203,7 @@ export function evaluateSelectedMelds(tiles: RummyTile[]): { valid: boolean; mel
   return { valid: true, melds, totalPoints: melds.reduce((s, m) => s + m.points, 0) };
 }
 
-// Gjen kombinimet me më shumë pikë në dorë (për botin dhe butonin "Gjej")
+// Gjen kombinimet me më shumë pikë në dorë (për botin dhe butonin "Kombinime")
 export function findAllMeldsInHand(hand: RummyTile[]): FoundMeld[] {
   const plain = hand.filter((t) => !t.isJoker);
   const jokers = hand.filter((t) => t.isJoker);
@@ -195,7 +213,6 @@ export function findAllMeldsInHand(hand: RummyTile[]): FoundMeld[] {
     if (v.valid) cands.push({ type: v.type!, tiles: v.sorted!, points: v.points, ids: new Set(tiles.map((t) => t.id)) });
   };
 
-  // grupe
   for (let n = 1; n <= 13; n++) {
     const byColor = new Map<TileColor, RummyTile>();
     plain.filter((t) => t.number === n).forEach((t) => { if (!byColor.has(t.color)) byColor.set(t.color, t); });
@@ -208,7 +225,6 @@ export function findAllMeldsInHand(hand: RummyTile[]): FoundMeld[] {
     if (list.length >= 1 && jokers.length >= 2) push([list[0], jokers[0], jokers[1]]);
   }
 
-  // seri (me 0, 1 ose 2 jokera)
   for (const color of TILE_COLORS) {
     const uniq = [...new Map(plain.filter((t) => t.color === color).map((t) => [t.number, t])).values()]
       .sort((a, b) => a.number - b.number);
@@ -250,7 +266,7 @@ const nextSeat = (s: RummyGameState, id: string) =>
 function dealRound(
   seats: { id: string; nickname: string }[],
   round: number,
-  base: Pick<RummyGameState, 'gameId' | 'rev' | 'scores'>,
+  base: Pick<RummyGameState, 'gameId' | 'rev' | 'scores' | 'targetScore'>,
 ): RummyGameState {
   const tiles = createTiles();
   const indicator = tiles.pop()!;
@@ -258,32 +274,38 @@ function dealRound(
   const deck = tiles.map((t) => (t.color === joker.color && t.number === joker.number ? { ...t, isJoker: true } : t));
   const order = seats.map((p) => p.id);
   const starter = order[(round - 1) % order.length];
+  const size = dealSize();
   const players: Record<string, RummyPlayer> = {};
   seats.forEach((p) => {
-    players[p.id] = { id: p.id, nickname: p.nickname, hand: deck.splice(0, p.id === starter ? HAND_SIZE + 1 : HAND_SIZE), hasOpened: false };
+    players[p.id] = { id: p.id, nickname: p.nickname, hand: deck.splice(0, size), hasOpened: false };
   });
+  const firstDiscard = deck.pop()!; // guri i parë i tokës kthehet i hapur
   return {
-    version: 2,
+    version: 3,
     gameId: base.gameId,
     rev: base.rev,
     round,
-    totalRounds: TOTAL_ROUNDS,
+    targetScore: base.targetScore,
     deck,
     indicator,
     joker,
-    discardPile: [],
+    discardPile: [firstDiscard],
     melds: [],
     players,
     playerOrder: order,
     currentTurn: starter,
-    hasDrawn: true,
+    hasDrawn: false,
     lastDrawnTileId: null,
+    takenFromDiscardId: null,
+    openedAtTurnStart: false,
     status: 'playing',
     scores: base.scores,
     roundWinnerId: null,
+    roundPoints: 0,
+    wentRummy: false,
     winnerId: null,
     winnerName: null,
-    lastActionText: `Raundi ${round} filloi! ${players[starter].nickname} fillon — hidh një gur.`,
+    lastActionText: `Raundi ${round} filloi! ${players[starter].nickname} merr i pari.`,
   };
 }
 
@@ -293,7 +315,7 @@ export function initRummyGame(list: { id: string; nickname: string }[]): RummyGa
   for (let i = seats.length; i < RUMMY_SEATS; i++) seats.push({ id: `BOT_RUMMY_${i}`, nickname: `Bot ${i}` });
   const scores: Record<string, number[]> = {};
   seats.forEach((p) => { scores[p.id] = []; });
-  return dealRound(seats, 1, { gameId: Date.now(), rev: 0, scores });
+  return dealRound(seats, 1, { gameId: Date.now(), rev: 0, scores, targetScore: TARGET_SCORE });
 }
 
 export function startNextRound(state: RummyGameState): RummyGameState {
@@ -302,51 +324,64 @@ export function startNextRound(state: RummyGameState): RummyGameState {
   return dealRound(seats, state.round + 1, state);
 }
 
-export function handPenalty(p: RummyPlayer): number {
-  if (p.hand.length === 0) return 0;
-  if (!p.hasOpened) return UNOPENED_PENALTY;
-  return p.hand.reduce((s, t) => s + (t.isJoker ? JOKER_PENALTY : t.number), 0);
-}
-
 export const totalScore = (s: RummyGameState, id: string) => (s.scores[id] ?? []).reduce((a, b) => a + b, 0);
 
 export function standings(s: RummyGameState) {
   return s.playerOrder
     .map((id) => ({ id, nickname: s.players[id].nickname, total: totalScore(s, id) }))
-    .sort((a, b) => a.total - b.total);
+    .sort((a, b) => b.total - a.total || Number(b.id === s.roundWinnerId) - Number(a.id === s.roundWinnerId));
 }
 
+// Raundi mbaron: fituesi merr pikët e gurëve që u mbetën të tjerëve (dyfish nëse bëri "Rummy")
 function endRound(state: RummyGameState, winnerId: string | null, players = state.players): RummyGameState {
+  const wentRummy = !!winnerId && !state.openedAtTurnStart;
+  const collected = winnerId
+    ? state.playerOrder.filter((id) => id !== winnerId).reduce((a, id) => a + handValue(players[id].hand), 0)
+    : 0;
+  const points = wentRummy ? collected * 2 : collected;
   const scores: Record<string, number[]> = {};
-  state.playerOrder.forEach((id) => {
-    scores[id] = [...(state.scores[id] ?? []), id === winnerId ? 0 : handPenalty(players[id])];
-  });
-  const ended: RummyGameState = { ...state, players, scores, roundWinnerId: winnerId, hasDrawn: false, lastDrawnTileId: null };
+  state.playerOrder.forEach((id) => { scores[id] = [...(state.scores[id] ?? []), id === winnerId ? points : 0]; });
+  const ended: RummyGameState = {
+    ...state, players, scores,
+    roundWinnerId: winnerId, roundPoints: points, wentRummy,
+    hasDrawn: false, lastDrawnTileId: null, takenFromDiscardId: null,
+  };
   const who = winnerId ? players[winnerId].nickname : null;
-  if (state.round >= state.totalRounds) {
-    const [first] = standings(ended);
+  const [first] = standings(ended);
+  if (first && first.total >= state.targetScore) {
     return {
       ...ended,
       status: 'finished',
       winnerId: first.id,
       winnerName: first.nickname,
-      lastActionText: `🏆 ${first.nickname} fitoi lojën pas ${state.totalRounds} raundeve!`,
+      lastActionText: `🏆 ${first.nickname} arriti ${first.total} pikë dhe fitoi ndeshjen!`,
     };
   }
   return {
     ...ended,
     status: 'roundOver',
-    lastActionText: who ? `👑 ${who} mbaroi gurët dhe fitoi raundin ${state.round}!` : `Gurët mbaruan — raundi ${state.round} përfundoi.`,
+    lastActionText: who
+      ? `👑 ${who} mbaroi gurët${wentRummy ? ' me RUMMY' : ''} dhe mori ${points} pikë!`
+      : `Gurët mbaruan — raundi ${state.round} përfundoi pa fitues.`,
   };
 }
+
+// Pas çdo veprimi: nëse dora mbeti bosh, raundi mbaron
+const finishIfEmpty = (state: RummyGameState, playerId: string) =>
+  state.players[playerId].hand.length === 0 ? endRound(state, playerId) : state;
 
 export function drawRummyTile(state: RummyGameState, playerId: string, source: 'deck' | 'discard'): RummyGameState {
   if (state.status !== 'playing' || state.currentTurn !== playerId || state.hasDrawn) return state;
   const p = state.players[playerId];
   if (!p) return state;
-  if (source === 'deck' && state.deck.length === 0) return endRound(state, null);
-  const deck = state.deck.slice();
-  const discard = state.discardPile.slice();
+  let deck = state.deck.slice();
+  let discard = state.discardPile.slice();
+  if (source === 'deck' && deck.length === 0) {
+    // stiva mbaroi: gurët e tokës (përveç të fundit) përzihen dhe bëhen stivë e re
+    if (discard.length <= 1) return endRound(state, null);
+    deck = shuffle(discard.slice(0, -1));
+    discard = discard.slice(-1);
+  }
   const tile = source === 'discard' ? discard.pop() : deck.pop();
   if (!tile) return state;
   return {
@@ -355,9 +390,34 @@ export function drawRummyTile(state: RummyGameState, playerId: string, source: '
     discardPile: discard,
     hasDrawn: true,
     lastDrawnTileId: tile.id,
+    takenFromDiscardId: source === 'discard' ? tile.id : null,
     players: { ...state.players, [playerId]: { ...p, hand: [...p.hand, tile] } },
-    lastActionText: `${p.nickname} mori një gur${source === 'discard' ? ' nga toka' : ''}.`,
+    lastActionText: source === 'discard'
+      ? `${p.nickname} mori ${tile.isJoker ? 'Jokerin' : tile.number} nga toka.`
+      : `${p.nickname} mori një gur nga stiva.`,
   };
+}
+
+function applyMelds(state: RummyGameState, playerId: string, found: FoundMeld[], usedIds: Set<string>): { state: RummyGameState; error?: string } {
+  const p = state.players[playerId];
+  const total = found.reduce((a, m) => a + m.points, 0);
+  if (!p.hasOpened && total < OPEN_MIN) return { state, error: `Për hapje duhen min. ${OPEN_MIN} pikë (ke ${total}).` };
+  const hand = p.hand.filter((t) => !usedIds.has(t.id));
+  const melds: RummyMeld[] = found.map((m, i) => ({
+    id: `m${state.round}_${state.melds.length + i}`,
+    ownerId: playerId,
+    ownerName: p.nickname,
+    tiles: m.tiles,
+    type: m.type,
+    points: m.points,
+  }));
+  const next: RummyGameState = {
+    ...state,
+    melds: [...state.melds, ...melds],
+    players: { ...state.players, [playerId]: { ...p, hand, hasOpened: true } },
+    lastActionText: `✨ ${p.nickname} ${p.hasOpened ? 'vendosi' : 'u hap me'} ${total} pikë!`,
+  };
+  return { state: finishIfEmpty(next, playerId) };
 }
 
 export function playRummyMeld(state: RummyGameState, playerId: string, tileIds: string[]): { state: RummyGameState; error?: string } {
@@ -367,26 +427,18 @@ export function playRummyMeld(state: RummyGameState, playerId: string, tileIds: 
   const chosen = p.hand.filter((t) => tileIds.includes(t.id));
   const ev = evaluateSelectedMelds(chosen);
   if (!ev.valid) return { state, error: 'Kombinim i pavlefshëm! Seri me ngjyrë të njëjtë ose grup me numër të njëjtë, min. 3 gurë.' };
-  if (!p.hasOpened && ev.totalPoints < OPEN_MIN) return { state, error: `Për hapje duhen min. ${OPEN_MIN} pikë (ke ${ev.totalPoints}).` };
-  const used = new Set(chosen.map((t) => t.id));
-  const hand = p.hand.filter((t) => !used.has(t.id));
-  if (hand.length === 0) return { state, error: 'Duhet të të mbetet një gur për ta hedhur.' };
-  const melds: RummyMeld[] = ev.melds.map((m, i) => ({
-    id: `m${state.round}_${state.melds.length + i}`,
-    ownerId: playerId,
-    ownerName: p.nickname,
-    tiles: m.tiles,
-    type: m.type,
-    points: m.points,
-  }));
-  return {
-    state: {
-      ...state,
-      melds: [...state.melds, ...melds],
-      players: { ...state.players, [playerId]: { ...p, hand, hasOpened: true } },
-      lastActionText: `✨ ${p.nickname} ${p.hasOpened ? 'vendosi' : 'u hap me'} ${ev.totalPoints} pikë!`,
-    },
-  };
+  return applyMelds(state, playerId, ev.melds, new Set(chosen.map((t) => t.id)));
+}
+
+// Hapja/vendosja nga rafti: çdo grup gurësh të vendosur njëri pas tjetrit kontrollohet veçmas
+export function playRummyMeldGroups(state: RummyGameState, playerId: string, groups: string[][]): { state: RummyGameState; error?: string } {
+  if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) return { state, error: 'Merr një gur fillimisht!' };
+  const p = state.players[playerId];
+  if (!p || groups.length === 0) return { state };
+  const byId = new Map(p.hand.map((t) => [t.id, t]));
+  const checked = groups.map((ids) => validateSingleMeld(ids.map((id) => byId.get(id)).filter((t): t is RummyTile => !!t)));
+  if (checked.some((c) => !c.valid)) return { state, error: 'Një nga kombinimet në raft nuk është i vlefshëm.' };
+  return applyMelds(state, playerId, checked.map((c) => ({ type: c.type!, tiles: c.sorted!, points: c.points })), new Set(groups.flat()));
 }
 
 export function addToRummyMeld(state: RummyGameState, playerId: string, tileIds: string[], meldId: string): { state: RummyGameState; error?: string } {
@@ -399,22 +451,27 @@ export function addToRummyMeld(state: RummyGameState, playerId: string, tileIds:
   const v = validateSingleMeld([...meld.tiles, ...chosen]);
   if (!v.valid) return { state, error: 'Ky gur nuk përshtatet në këtë kombinim.' };
   const hand = p.hand.filter((t) => !tileIds.includes(t.id));
-  if (hand.length === 0) return { state, error: 'Duhet të të mbetet një gur për ta hedhur.' };
-  return {
-    state: {
-      ...state,
-      melds: state.melds.map((m) => (m.id === meldId ? { ...m, tiles: v.sorted!, points: v.points } : m)),
-      players: { ...state.players, [playerId]: { ...p, hand } },
-      lastActionText: `➕ ${p.nickname} shtoi në tavolinë.`,
-    },
+  const next: RummyGameState = {
+    ...state,
+    melds: state.melds.map((m) => (m.id === meldId ? { ...m, tiles: v.sorted!, points: v.points } : m)),
+    players: { ...state.players, [playerId]: { ...p, hand } },
+    lastActionText: `➕ ${p.nickname} shtoi në tavolinë.`,
   };
+  return { state: finishIfEmpty(next, playerId) };
+}
+
+// A lejohet hedhja e këtij guri? (jo guri që sapo u mor nga toka, përveç kur është i vetmi)
+export function canDiscardTile(state: RummyGameState, playerId: string, tileId: string): boolean {
+  const p = state.players[playerId];
+  if (!p) return false;
+  return tileId !== state.takenFromDiscardId || p.hand.length === 1;
 }
 
 export function discardRummyTile(state: RummyGameState, playerId: string, tileId: string): RummyGameState {
   if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) return state;
   const p = state.players[playerId];
   const tile = p?.hand.find((t) => t.id === tileId);
-  if (!p || !tile) return state;
+  if (!p || !tile || !canDiscardTile(state, playerId, tileId)) return state;
   const hand = p.hand.filter((t) => t.id !== tileId);
   const base = { ...state, discardPile: [...state.discardPile, tile] };
   const players = { ...state.players, [playerId]: { ...p, hand } };
@@ -426,16 +483,20 @@ export function discardRummyTile(state: RummyGameState, playerId: string, tileId
     currentTurn: next,
     hasDrawn: false,
     lastDrawnTileId: null,
-    lastActionText: `${p.nickname} hodhi një gur. Radha e ${state.players[next].nickname}.`,
+    takenFromDiscardId: null,
+    openedAtTurnStart: players[next].hasOpened,
+    lastActionText: `${p.nickname} hodhi ${tile.isJoker ? 'Jokerin' : tile.number}. Radha e ${state.players[next].nickname}.`,
   };
 }
 
-// Kur mbaron koha ose luan boti pa kombinime: merr nga stiva dhe hidh gurin më pak të dobishëm
-function pickDiscard(hand: RummyTile[]): RummyTile {
+// Guri më pak i dobishëm për t'u hedhur (kur mbaron koha ose luan boti)
+function pickDiscard(state: RummyGameState, hand: RummyTile[]): RummyTile {
+  const allowed = hand.filter((t) => t.id !== state.takenFromDiscardId);
+  const pool0 = allowed.length ? allowed : hand;
   const useful = new Set(findAllMeldsInHand(hand).flatMap((m) => m.tiles.map((t) => t.id)));
-  const pool = hand.filter((t) => !t.isJoker && !useful.has(t.id));
-  const from = pool.length ? pool : hand.filter((t) => !t.isJoker).length ? hand.filter((t) => !t.isJoker) : hand;
-  return from.reduce((a, b) => (b.number > a.number ? b : a));
+  const pool = pool0.filter((t) => !t.isJoker && !useful.has(t.id));
+  const from = pool.length ? pool : pool0.filter((t) => !t.isJoker).length ? pool0.filter((t) => !t.isJoker) : pool0;
+  return from.reduce((a, b) => (tilePoints(b.number) > tilePoints(a.number) ? b : a));
 }
 
 export function autoPlayTurn(state: RummyGameState): RummyGameState {
@@ -444,39 +505,41 @@ export function autoPlayTurn(state: RummyGameState): RummyGameState {
   if (s.status !== 'playing') return s;
   if (!s.hasDrawn) s = drawRummyTile(s, id, 'deck');
   if (s.status !== 'playing') return s;
-  const p = s.players[id];
-  return discardRummyTile(s, id, pickDiscard(p.hand).id);
+  return discardRummyTile(s, id, pickDiscard(s, s.players[id].hand).id);
 }
 
 export function runBotRummyTurn(state: RummyGameState): RummyGameState {
   let s = state;
   const id = s.currentTurn;
   if (s.status !== 'playing' || !s.players[id]) return s;
-  if (!s.hasDrawn) s = drawRummyTile(s, id, 'deck');
+  if (!s.hasDrawn) {
+    // merr nga toka nëse guri i hapur plotëson një kombinim, përndryshe nga stiva
+    const top = s.discardPile.at(-1);
+    const hand = s.players[id].hand;
+    const helps = top && findAllMeldsInHand([...hand, top]).some((m) => m.tiles.some((t) => t.id === top.id));
+    s = drawRummyTile(s, id, helps ? 'discard' : 'deck');
+  }
   if (s.status !== 'playing') return s;
 
   const bot = s.players[id];
   const found = findAllMeldsInHand(bot.hand);
   const pts = found.reduce((a, m) => a + m.points, 0);
   if (found.length && (bot.hasOpened || pts >= OPEN_MIN)) {
-    const ids = found.flatMap((m) => m.tiles.map((t) => t.id));
-    if (bot.hand.length - ids.length >= 1) {
-      const r = playRummyMeld(s, id, ids);
-      if (!r.error) s = r.state;
-    }
+    const r = playRummyMeld(s, id, found.flatMap((m) => m.tiles.map((t) => t.id)));
+    if (!r.error) s = r.state;
+    if (s.status !== 'playing') return s;
   }
-  // shto gurë te kombinimet në tavolinë
   if (s.players[id].hasOpened) {
     for (const t of s.players[id].hand.slice()) {
-      if (s.players[id].hand.length <= 1) break;
       const meld = s.melds.find((m) => validateSingleMeld([...m.tiles, t]).valid);
       if (meld) {
         const r = addToRummyMeld(s, id, [t.id], meld.id);
         if (!r.error) s = r.state;
+        if (s.status !== 'playing') return s;
       }
     }
   }
-  return discardRummyTile(s, id, pickDiscard(s.players[id].hand).id);
+  return discardRummyTile(s, id, pickDiscard(s, s.players[id].hand).id);
 }
 
 /* ───────────── vendet: hyrja dhe largimi i lojtarëve ───────────── */
@@ -524,35 +587,4 @@ export function sortHand(hand: RummyTile[], by: 'runs' | 'groups'): RummyTile[] 
     if (!!a.isJoker !== !!b.isJoker) return a.isJoker ? 1 : -1;
     return by === 'runs' ? ci(a) - ci(b) || a.number - b.number : a.number - b.number || ci(a) - ci(b);
   });
-}
-
-// Hapja/vendosja nga rafti: çdo grup gurësh të vendosur njëri pas tjetrit kontrollohet veçmas
-export function playRummyMeldGroups(state: RummyGameState, playerId: string, groups: string[][]): { state: RummyGameState; error?: string } {
-  if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) return { state, error: 'Merr një gur fillimisht!' };
-  const p = state.players[playerId];
-  if (!p || groups.length === 0) return { state };
-  const byId = new Map(p.hand.map((t) => [t.id, t]));
-  const checked = groups.map((ids) => validateSingleMeld(ids.map((id) => byId.get(id)).filter((t): t is RummyTile => !!t)));
-  if (checked.some((c) => !c.valid)) return { state, error: 'Një nga kombinimet në raft nuk është i vlefshëm.' };
-  const total = checked.reduce((a, c) => a + c.points, 0);
-  if (!p.hasOpened && total < OPEN_MIN) return { state, error: `Për hapje duhen min. ${OPEN_MIN} pikë (ke ${total}).` };
-  const used = new Set(groups.flat());
-  const hand = p.hand.filter((t) => !used.has(t.id));
-  if (hand.length === 0) return { state, error: 'Duhet të të mbetet një gur për ta hedhur.' };
-  const melds: RummyMeld[] = checked.map((c, i) => ({
-    id: `m${state.round}_${state.melds.length + i}`,
-    ownerId: playerId,
-    ownerName: p.nickname,
-    tiles: c.sorted!,
-    type: c.type!,
-    points: c.points,
-  }));
-  return {
-    state: {
-      ...state,
-      melds: [...state.melds, ...melds],
-      players: { ...state.players, [playerId]: { ...p, hand, hasOpened: true } },
-      lastActionText: `✨ ${p.nickname} ${p.hasOpened ? 'vendosi' : 'u hap me'} ${total} pikë!`,
-    },
-  };
 }

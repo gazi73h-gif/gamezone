@@ -2,8 +2,8 @@
 
 import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
-  RummyGameState, RummyTile, TileColor, OPEN_MIN,
-  addToRummyMeld, autoPlayTurn, discardRummyTile, drawRummyTile, evaluateSelectedMelds,
+  RummyGameState, RummyTile, TileColor, OPEN_MIN, JOKER_POINTS,
+  addToRummyMeld, canDiscardTile, autoPlayTurn, discardRummyTile, drawRummyTile, evaluateSelectedMelds,
   findAllMeldsInHand, isRummyBot, isTileRummyState, playRummyMeld, playRummyMeldGroups, runBotRummyTurn,
   sortHand, standings, startNextRound, totalScore, validateSingleMeld,
 } from '@/lib/rummyLogic';
@@ -193,8 +193,8 @@ export default function RummyGame(props: RummyGameProps) {
     return (
       <div className="rk-room h-full flex items-center justify-center p-4">
         <div className="gz-panel rounded-[28px] p-7 text-center max-w-sm">
-          <h2 className="font-display font-bold text-2xl mb-2">Rummy tani luhet me gurë!</h2>
-          <p className="text-mute text-sm mb-5">Kjo lojë u nis me versionin e vjetër me letra. Fillo një lojë të re në të njëjtën dhomë.</p>
+          <h2 className="font-display font-bold text-2xl mb-2">Rregullat e Rummy u përditësuan!</h2>
+          <p className="text-mute text-sm mb-5">Kjo lojë u nis me rregullat e mëparshme. Fillo një lojë të re në të njëjtën dhomë.</p>
           {props.onRestartGame && (
             <button onClick={props.onRestartGame} className="gz-btn inline-flex items-center gap-2 font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer">
               <RotateCcw className="w-5 h-5" /> Lojë e re
@@ -364,6 +364,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
 
   const discard = (id: string) => {
     if (!canAct) return fail(myTurn ? 'Merr një gur fillimisht!' : 'Nuk është radha jote.');
+    if (!canDiscardTile(s, currentPlayerId, id)) return fail('Nuk mund ta hedhësh gurin që sapo more nga toka.');
     setSelected([]);
     void commit(discardRummyTile(s, currentPlayerId, id));
   };
@@ -450,7 +451,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
   const topDiscard = s.discardPile.at(-1) ?? null;
   const evalSel = chosenTiles.length >= 3 ? evaluateSelectedMelds(chosenTiles) : null;
   const selReady = !!evalSel?.valid && (me?.hasOpened || evalSel.totalPoints >= OPEN_MIN);
-  const rackReady = inRack.length > 0 && (me?.hasOpened || rackPoints >= OPEN_MIN) && hand.length - inRackIds.size >= 1;
+  const rackReady = inRack.length > 0 && (me?.hasOpened || rackPoints >= OPEN_MIN);
   const draggingTile = drag?.kind === 'tile' && drag.id ? byId.get(drag.id) : null;
   const jokerTile: RummyTile = { id: 'joker-preview', color: s.joker.color, number: s.joker.number, isJoker: true };
   const opp = (offset: number, side: 'top' | 'left' | 'right') => {
@@ -479,7 +480,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
         </button>
         <div className="flex items-center gap-1.5">
           <span className="rk-round">
-            Raundi <b>{s.round}</b><span className="opacity-60">/{s.totalRounds}</span>
+            Raundi <b>{s.round}</b><span className="opacity-60"> · deri në {s.targetScore}</span>
           </span>
           <button onClick={() => setModal('scores')} aria-label="Pikët" className="rk-icon-btn"><ListOrdered className="w-4 h-4" /></button>
           <button onClick={() => setModal('rules')} aria-label="Rregullat" className="rk-icon-btn"><BookOpen className="w-4 h-4" /></button>
@@ -526,8 +527,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
                       onPointerDown={(e) => topDiscard && onPointerDown(e, 'discard')}
                       className={`rk-discard ${drag?.over === 'discard' ? 'rk-over' : ''} ${canDraw && topDiscard ? 'rk-can' : ''} ${canAct && drag?.kind === 'tile' ? 'rk-target' : ''}`}
                     >
-                      {/* guri i hedhur qëndron përmbys: askush s’e sheh cili është */}
-                      {topDiscard ? <span className="rk-discard-pile"><TileBack /></span> : <span className="text-white/60 text-[10px] font-bold text-center leading-tight">Hidh<br />këtu</span>}
+                      {topDiscard ? <Tile tile={topDiscard} /> : <span className="text-white/60 text-[10px] font-bold text-center leading-tight">Hidh<br />këtu</span>}
                     </div>
                     <span className="rk-label">Toka</span>
                   </div>
@@ -628,7 +628,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
       {/* guri që po tërhiqet */}
       {drag && (
         <div className="fixed z-50 pointer-events-none" style={{ left: drag.x, top: drag.y, transform: 'translate(-50%, -60%) rotate(-4deg) scale(1.12)' }}>
-          {draggingTile ? <Tile tile={draggingTile} ghost /> : <TileBack />}
+          {draggingTile ? <Tile tile={draggingTile} ghost /> : drag.kind === 'discard' && topDiscard ? <Tile tile={topDiscard} ghost /> : <TileBack />}
         </div>
       )}
 
@@ -651,8 +651,10 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
             </h2>
             <p className="text-gold font-display font-semibold text-lg mt-1">
               {s.status === 'finished'
-                ? (s.winnerId === currentPlayerId ? 'Ti fitove me më pak pikë!' : `${s.winnerName} fitoi me më pak pikë!`)
-                : s.roundWinnerId ? `${s.players[s.roundWinnerId]?.nickname} mbaroi gurët!` : 'Gurët e stivës mbaruan.'}
+                ? `${s.winnerId === currentPlayerId ? 'Ti fitove' : `${s.winnerName} fitoi`} me ${totalScore(s, s.winnerId ?? '')} pikë!`
+                : s.roundWinnerId
+                  ? `${s.roundWinnerId === currentPlayerId ? 'Ti more' : `${s.players[s.roundWinnerId]?.nickname} mori`} ${s.roundPoints} pikë${s.wentRummy ? ' — RUMMY, pikë dyfishe!' : '!'}`
+                  : 'Gurët mbaruan — asnjë fitues në këtë raund.'}
             </p>
             <ScoreTable s={s} me={currentPlayerId} ranking={s.status === 'finished' ? ranking : null} />
             <div className="flex flex-wrap justify-center gap-2 mt-5">
@@ -685,7 +687,7 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
             {modal === 'scores' ? (
               <>
                 <h2 className="font-display font-bold text-2xl mb-1">Pikët</h2>
-                <p className="text-xs text-mute mb-2">Pikët e gurëve që mbeten në dorë. Fiton kush ka më pak pas {s.totalRounds} raundeve.</p>
+                <p className="text-xs text-mute mb-2">Fituesi i raundit merr pikët e gurëve që u mbetën të tjerëve. Fiton i pari që arrin {s.targetScore}.</p>
                 <ScoreTable s={s} me={currentPlayerId} ranking={null} />
               </>
             ) : (
@@ -694,11 +696,14 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
                 <ul className="text-sm text-mute space-y-2 list-disc pl-5">
                   <li>104 gurë: 4 ngjyra, numrat 1–13, nga dy kopje.</li>
                   <li>Treguesi zbulohet në fillim të raundit. <strong className="text-ink">Jokeri</strong> është numri pasues me të njëjtën ngjyrë (pas 13 vjen 1) dhe zëvendëson çdo gur.</li>
-                  <li>Në radhën tënde: merr një gur (stiva ose toka), hap/shto kombinime, pastaj hidh një gur. Ke 30 sekonda.</li>
+                  <li>Secili merr 14 gurë. Guri i parë i tokës kthehet i hapur.</li>
+                  <li>Në radhën tënde: merr një gur (stiva ose toka), hap/shto kombinime, pastaj hidh një gur. Ke 30 sekonda. Gurin që sapo more nga toka nuk mund ta hedhësh në të njëjtën radhë.</li>
                   <li><strong className="text-ink">Seri:</strong> 3+ gurë me ngjyrë të njëjtë radhazi. <strong className="text-ink">Grup:</strong> 3–4 gurë me numër të njëjtë dhe ngjyra të ndryshme.</li>
                   <li>Vendosi kombinimet në raft njërin pas tjetrit, me një vend bosh midis tyre. Kur ke {OPEN_MIN}+ pikë, shtyp <strong className="text-ink">Hap</strong>. Butoni <strong className="text-ink">Kombinime</strong> i rregullon vetë.</li>
                   <li>Pas hapjes, tërhiq një gur mbi një kombinim në tavolinë për ta shtuar.</li>
-                  <li>Fiton raundin kush mbaron gurët. Të tjerët marrin pikët e gurëve në dorë (Jokeri 30, pa u hapur 100). Pas 4 raundeve fiton kush ka më pak pikë.</li>
+                  <li>Raundi mbaron sapo dikush vendos ose hedh gurin e fundit.</li>
+                  <li>Fituesi merr pikët e gurëve që u mbetën të tjerëve: 1–10 sa numri, 11–13 = 10, Jokeri {JOKER_POINTS}. <strong className="text-ink">Rummy</strong> (të gjithë gurët në një radhë, pa kombinime më parë) = pikë dyfishe.</li>
+                  <li>Fiton ndeshjen i pari që arrin 100 pikë. Kur mbaron stiva, gurët e tokës përzihen dhe bëhen stivë e re.</li>
                 </ul>
               </>
             )}
@@ -713,13 +718,14 @@ function RummyTable({ gameState: serverState, currentPlayerId, isHost, roomCode,
 
 function ScoreTable({ s, me, ranking }: { s: RummyGameState; me: string; ranking: ReturnType<typeof standings> | null }) {
   const rows = ranking ?? s.playerOrder.map((id) => ({ id, nickname: s.players[id].nickname, total: totalScore(s, id) }));
+  const played = Math.max(1, ...s.playerOrder.map((id) => s.scores[id]?.length ?? 0));
   return (
     <div className="mt-3 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-mute text-[11px] uppercase">
             <th className="text-left font-bold py-1">{ranking ? '#' : ''} Lojtari</th>
-            {Array.from({ length: s.totalRounds }).map((_, i) => <th key={i} className="font-bold w-8">R{i + 1}</th>)}
+            {Array.from({ length: played }).map((_, i) => <th key={i} className="font-bold w-8">R{i + 1}</th>)}
             <th className="font-bold w-12 text-right">Gjithsej</th>
           </tr>
         </thead>
@@ -730,7 +736,7 @@ function ScoreTable({ s, me, ranking }: { s: RummyGameState; me: string; ranking
                 {ranking && <span className="mr-1.5">{['🥇', '🥈', '🥉'][i] ?? i + 1}</span>}
                 {r.id === me ? 'Ti' : r.nickname}
               </td>
-              {Array.from({ length: s.totalRounds }).map((_, k) => (
+              {Array.from({ length: played }).map((_, k) => (
                 <td key={k} className="text-center tabular-nums text-mute">{s.scores[r.id]?.[k] ?? '–'}</td>
               ))}
               <td className="text-right font-display font-semibold tabular-nums">{r.total}</td>
@@ -859,7 +865,6 @@ function RummyStyles() {
         border-radius: 12px; border: 2px dashed rgba(255,255,255,0.45);
         display: grid; place-items: center; background: rgba(0,0,0,0.18);
       }
-      .rk-discard-pile .rk-back { transform: rotate(-6deg); box-shadow: 0 2px 0 #c9b98f, 0 4px 0 #ebe0c2, 0 6px 8px rgba(0,0,0,0.4); }
       .rk-target { border-color: #ffc83d; background: rgba(255,200,61,0.15); }
       .rk-over { border-color: #ffc83d !important; border-style: solid !important; background: rgba(255,200,61,0.35) !important; }
 
