@@ -8,6 +8,8 @@ import {
   showIndicator, sortHand, standings, startNextRound, validateSingleMeld,
 } from '@/lib/rummyLogic';
 import { StaleStateError } from '@/lib/roomSync';
+import { playSound } from '@/lib/sound';
+import SoundToggle from './SoundToggle';
 import { recordWin } from '@/lib/supabase';
 import { ArrowLeft, BookOpen, Eye, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
 
@@ -293,6 +295,21 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     return () => clearTimeout(t);
   }, [banner]);
 
+  /* tingujt: çdo ndryshim i lojës (edhe nga lojtarët e tjerë) */
+  const piles = s.playerOrder.reduce((a, id) => a + (s.discardPiles[id]?.length ?? 0), 0);
+  const soundKey = `${s.gameId}|${s.round}|${piles}|${s.currentTurn}|${s.hasDrawn}|${s.status}`;
+  const soundRef = useRef('');
+  useEffect(() => {
+    const prev = soundRef.current.split('|');
+    soundRef.current = soundKey;
+    const [g, r, p, turn, drawn, status] = soundKey.split('|');
+    if (prev[0] !== g || prev[1] !== r) return; // lojë/raund i ri: pa tinguj për shpërndarjen
+    if (status !== 'playing' && prev[5] === 'playing') { playSound('tileDrop'); playSound('win'); return; }
+    if (Number(p) > Number(prev[2])) playSound('tileDrop');
+    else if (drawn === 'true' && prev[4] === 'false' && turn === prev[3]) playSound('tileDraw');
+    if (turn === currentPlayerId && prev[3] !== currentPlayerId && status === 'playing') playSound('turn');
+  }, [soundKey, currentPlayerId]);
+
   /* koha e radhës: 30 sekonda */
   const turnKey = `${s.gameId}|${s.round}|${s.currentTurn}|${s.hasDrawn}|${s.status}`;
   const deadlineRef = useRef(0);
@@ -375,6 +392,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   };
 
   const moveTile = (id: string, to: number) => {
+    playSound('tileMove');
     const slots = layout.slice();
     const from = slots.indexOf(id);
     if (from < 0 || from === to) return;
@@ -480,6 +498,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
         <button onClick={onLeaveRoom} className="rk-chip-btn"><ArrowLeft className="w-4 h-4" /> Dil</button>
         <div className="flex items-center gap-1.5">
           <span className="rk-round">Raundi <b>{s.round}</b></span>
+          <SoundToggle className="!w-[34px] !h-[34px]" />
           <button onClick={() => setModal('scores')} aria-label="Pikët" className="rk-icon-btn"><ListOrdered className="w-4 h-4" /></button>
           <button onClick={() => setModal('rules')} aria-label="Rregullat" className="rk-icon-btn"><BookOpen className="w-4 h-4" /></button>
         </div>

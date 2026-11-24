@@ -15,6 +15,7 @@ import UnoGame from '../../../components/UnoGame';
 import { initUnoGame, UnoGameState } from '../../../lib/unoLogic';
 import LudoGame from '../../../components/LudoGame';
 import GameArt from '../../../components/GameArt';
+import SoundToggle from '../../../components/SoundToggle';
 import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
@@ -174,15 +175,27 @@ export default function RoomLobbyPage() {
           }
         }
 
-        // Ludo & Rummy: lojtari i ri zë vendin e botit / një vend të lirë, ai që largohet zëvendësohet nga boti.
-        // Loja vazhdon pa u rifilluar. (Vetëm nëse hosti është në listë, që një listë bosh të mos i largojë të gjithë.)
-        const seatGame = SEAT_GAMES.includes(roomData.game_type);
+        const hostHere = realPlayers.some((p) => p.player_id === storedHostId);
+        const stateText = JSON.stringify(roomData.game_state ?? '');
+        const joiners = realPlayers.filter((p) => !stateText.includes(p.player_id));
+
+        // Hyri një lojtar i vërtetë në një lojë me bot: boti largohet, loja ndalet dhe të gjithë
+        // shohin "Filloni një lojë të re" (për të gjitha lojërat)
         if (
-          seatGame &&
           isHostNow &&
+          hostHere &&
           roomData.status === 'playing' &&
-          realPlayers.some((p) => p.player_id === storedHostId)
+          hasBot(roomData.game_state) &&
+          joiners.length > 0 &&
+          Date.now() - lastRestartRef.current > 5000
         ) {
+          lastRestartRef.current = Date.now();
+          await supabase
+            .from('rooms')
+            .update({ status: 'waiting', game_state: { notice: 'bot-left', joined: joiners.map((p) => p.nickname) } })
+            .eq('code', roomCode);
+        } else if (isHostNow && hostHere && roomData.status === 'playing' && SEAT_GAMES.includes(roomData.game_type)) {
+          // Ludo & Okey pa bot: kush largohet zëvendësohet nga boti; në Ludo lojtari i ri zë një ngjyrë të lirë
           const next = syncSeats(roomData.game_type, roomData.game_state, realPlayers);
           if (next) {
             try {
@@ -192,27 +205,6 @@ export default function RoomLobbyPage() {
             }
           }
         }
-
-        // Lojërat e tjera: rifillo kur loja po luhej me bot dhe tani ka 2+ lojtarë real.
-        // (Më parë numri i lojtarëve fillonte nga 0 pas çdo refresh, prandaj hosti e fshinte lojën pa dashje.)
-        const playingWithBot = roomData.status === 'playing' && hasBot(roomData.game_state);
-        if (
-          !seatGame &&
-          isHostNow &&
-          realCount >= 2 &&
-          (roomData.status === 'waiting' || playingWithBot) &&
-          Date.now() - lastRestartRef.current > 5000
-        ) {
-          lastRestartRef.current = Date.now();
-          const gs = await buildInitialGameState(roomData.game_type, realPlayers, false);
-          if (gs) {
-            await supabase
-              .from('rooms')
-              .update({ status: 'playing', game_state: gs })
-              .eq('code', roomCode);
-          }
-        }
-
       }
     };
 
@@ -456,7 +448,8 @@ export default function RoomLobbyPage() {
     room.host_id !== currentPlayerId &&
     !JSON.stringify(room.game_state).includes(currentPlayerId);
   const seatGame = SEAT_GAMES.includes(room.game_type);
-  const canTakeSeat = seatGame ? hasFreeSeat(room.game_type, room.game_state) : hasBot(room.game_state);
+  const botMatch = outsideGame && hasBot(room.game_state);
+  const canTakeSeat = outsideGame && (botMatch || (seatGame && hasFreeSeat(room.game_type, room.game_state)));
   if (outsideGame && (canTakeSeat || !seatGame)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
@@ -464,7 +457,7 @@ export default function RoomLobbyPage() {
         <span className="w-12 h-12 rounded-full border-4 border-white/10 border-t-gold animate-spin" />
         <span className="font-display text-xl">{canTakeSeat ? 'Duke u bashkuar në lojë...' : 'Loja është plot'}</span>
         <span className="text-sm text-mute">
-          {!canTakeSeat ? 'Prit derisa të lirohet një vend.' : seatGame ? 'Po të zihet vendi në tavolinë.' : `Loja po rifillon me ty dhe ${hostNick}.`}
+          {!canTakeSeat ? 'Prit derisa të lirohet një vend.' : botMatch ? `Boti po largohet — do të filloni një lojë të re me ${hostNick}.` : 'Po të zihet vendi në tavolinë.'}
         </span>
         <button onClick={handleLeaveRoom} className="mt-2 text-sm font-bold text-mute hover:text-ink underline cursor-pointer">Dil</button>
       </div>
@@ -518,9 +511,12 @@ export default function RoomLobbyPage() {
             <ArrowLeft className="w-4 h-4" />
             Dil
           </button>
-          <span className="text-xs font-bold text-mute bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
-            Dhoma <strong className="font-display text-gold tracking-widest">{room.code}</strong>
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-mute bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+              Dhoma <strong className="font-display text-gold tracking-widest">{room.code}</strong>
+            </span>
+            <SoundToggle />
+          </div>
         </div>
         <div className="flex-1 min-h-0">
           <LudoGame
@@ -552,9 +548,12 @@ export default function RoomLobbyPage() {
             <ArrowLeft className="w-4 h-4" />
             Dil nga loja
           </button>
-          <span className="text-xs font-mono text-slate-400">
-            Dhoma: <strong className="text-amber-400">{room.code}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400">
+              Dhoma: <strong className="text-amber-400">{room.code}</strong>
+            </span>
+            <SoundToggle />
+          </div>
         </div>
         <YambGame
           roomCode={room.code}
@@ -580,9 +579,12 @@ export default function RoomLobbyPage() {
             <ArrowLeft className="w-4 h-4" />
             Dil nga loja
           </button>
-          <span className="text-xs font-mono text-slate-400">
-            Dhoma: <strong className="text-amber-400">{room.code}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400">
+              Dhoma: <strong className="text-amber-400">{room.code}</strong>
+            </span>
+            <SoundToggle />
+          </div>
         </div>
         <div className="px-3">
           <PishpirikGame
@@ -614,9 +616,12 @@ export default function RoomLobbyPage() {
             <ArrowLeft className="w-4 h-4" />
             Dil nga loja
           </button>
-          <span className="text-xs font-mono text-slate-400">
-            Dhoma: <strong className="text-amber-400">{room.code}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400">
+              Dhoma: <strong className="text-amber-400">{room.code}</strong>
+            </span>
+            <SoundToggle />
+          </div>
         </div>
         <div className="px-3">
           <ChessGame
@@ -648,9 +653,12 @@ export default function RoomLobbyPage() {
             <ArrowLeft className="w-4 h-4" />
             Dil nga loja
           </button>
-          <span className="text-xs font-mono text-slate-400">
-            Dhoma: <strong className="text-amber-400">{room.code}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400">
+              Dhoma: <strong className="text-amber-400">{room.code}</strong>
+            </span>
+            <SoundToggle />
+          </div>
         </div>
         <div className="px-3">
           <UnoGame
@@ -671,6 +679,9 @@ export default function RoomLobbyPage() {
   // 7. Lobby (Pritja e lojtarëve)
   const isHost = room.host_id === currentPlayerId;
   const emptySeats = Math.max(0, (MAX_SEATS[room.game_type] ?? 4) - players.length);
+  const notice = (room.game_state as { notice?: string; joined?: string[] } | null);
+  const botLeft = notice?.notice === 'bot-left';
+  const canStart = isHost || players.length >= 2;
 
   return (
     <div className="relative min-h-screen">
@@ -741,13 +752,18 @@ export default function RoomLobbyPage() {
             </ul>
 
             <div className="mt-6">
-              {isHost ? (
+              {botLeft && (
+                <p role="status" className="mb-3 flex items-center gap-2 rounded-2xl bg-mint/10 border border-mint/40 text-mint text-sm font-bold px-4 py-3">
+                  🤖➜👋 Boti u largua — u bashkua {notice?.joined?.join(', ') || 'një lojtar'}. Filloni një lojë të re bashkë!
+                </p>
+              )}
+              {canStart ? (
                 <button
                   onClick={handleStartGame}
                   className="gz-btn w-full flex items-center justify-center gap-2 font-display font-semibold text-xl py-4 rounded-2xl cursor-pointer"
                 >
                   <Play className="w-5 h-5 fill-current" />
-                  Fillo lojën
+                  {botLeft ? 'Filloni një lojë të re' : 'Fillo lojën'}
                 </button>
               ) : (
                 <p className="flex items-center justify-center gap-2 text-sm font-bold text-mute py-4 rounded-2xl bg-white/5">

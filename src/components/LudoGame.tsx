@@ -6,6 +6,7 @@ import {
   normalizeLudoState, LAST_MAIN, FINISH, isLudoBot, ludoStandings,
 } from '@/lib/ludoLogic';
 import { StaleStateError } from '@/lib/roomSync';
+import { playSound } from '@/lib/sound';
 import { recordWin } from '@/lib/supabase';
 import { RotateCcw, Trophy } from 'lucide-react';
 
@@ -232,7 +233,10 @@ export default function LudoGame({
   /* kërcimi, një fushë në çdo hap */
   useEffect(() => {
     if (!moving || rolling) return;
-    const t = setTimeout(() => setShown(nextHop(shown, positionsOf(gameState))), HOP_MS);
+    const t = setTimeout(() => {
+      setShown(nextHop(shown, positionsOf(gameState)));
+      playSound('hop');
+    }, HOP_MS);
     return () => clearTimeout(t);
   }, [moving, rolling, shown, gameState]);
 
@@ -295,6 +299,7 @@ export default function LudoGame({
   const handleRoll = () => {
     if (!isMyTurn || gameState.hasRolled || busy) return;
     setRolling(true);
+    playSound('dice');
     setTimeout(() => setRolling(false), ROLL_MS);
     void commit(rollAndAutoMove(gameState, currentPlayerId));
   };

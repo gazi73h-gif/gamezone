@@ -7,12 +7,22 @@ export interface ChessGameState { board: Board; turn: PieceColor; whiteId: strin
   aiDifficulty?: 'easy' | 'medium' | 'hard';
   prevBoard?: Board | null; lastActionText: string; }
 export function createInitialBoard(): Board { const b: Board = Array.from({ length: 8 }, () => Array(8).fill(null)); const back: PieceType[] = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']; for (let c = 0; c < 8; c++) { b[0][c] = { color: 'b', type: back[c] }; b[1][c] = { color: 'b', type: 'p' }; b[6][c] = { color: 'w', type: 'p' }; b[7][c] = { color: 'w', type: back[c] }; } return b; }
-export function initChessGame(players: { id: string; nickname: string }[]): ChessGameState { const w = players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }; const bl = players.at(1) || { id: 'BOT_AI', nickname: '🤖 Kompjuteri (Bot)' }; return { board: createInitialBoard(), turn: 'w', whiteId: w.id, whiteName: w.nickname, blackId: bl.id, blackName: bl.nickname, status: 'playing', winnerId: null, winnerName: null, inCheck: null, lastMove: null, capturedByWhite: [], capturedByBlack: [], moveHistory: [], aiDifficulty: 'medium', prevBoard: null, lastActionText: `Loja filloi! Lëvizin të Bardhat (${w.nickname}).` }; }
+export function initChessGame(players: { id: string; nickname: string }[]): ChessGameState { const w = players.at(0) || { id: 'p1', nickname: 'Lojtari 1' }; const bl = players.at(1) || { id: 'BOT_AI', nickname: '🤖 Kompjuteri (Bot)' }; return { board: createInitialBoard(), turn: 'w', whiteId: w.id, whiteName: w.nickname, blackId: bl.id, blackName: bl.nickname, status: 'playing', winnerId: null, winnerName: null, inCheck: null, lastMove: null, capturedByWhite: [], capturedByBlack: [], moveHistory: [], aiDifficulty: 'hard', prevBoard: null, lastActionText: `Loja filloi! Lëvizin të Bardhat (${w.nickname}).` }; }
 
 function cloneBoard(b: Board): Board { return b.map((r) => r.map((c) => (c ? { ...c } : null))); }
 function inBounds(r: number, c: number) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 
-function getPseudoMoves(b: Board, r: number, c: number): [number, number][] {
+// Kutia ku mund të kapet "en passant" (pas lëvizjes së dyfishtë të ushtarit), ose null
+export type EpSquare = [number, number] | null;
+export function epSquareOf(state: Pick<ChessGameState, 'board' | 'lastMove'>): EpSquare {
+  const lm = state.lastMove;
+  if (!lm) return null;
+  const p = state.board[lm.to[0]]?.[lm.to[1]];
+  if (p?.type !== 'p' || Math.abs(lm.to[0] - lm.from[0]) !== 2) return null;
+  return [(lm.to[0] + lm.from[0]) / 2, lm.to[1]];
+}
+
+function getPseudoMoves(b: Board, r: number, c: number, ep: EpSquare = null): [number, number][] {
   const p = b[r]?.[c];
   if (!p) return [];
   const moves: [number, number][] = [];
@@ -32,6 +42,8 @@ function getPseudoMoves(b: Board, r: number, c: number): [number, number][] {
     }
     for (const dc of Array.of(-1, 1)) {
       if (inBounds(r + dir, c + dc) && b[r + dir][c + dc]?.color && b[r + dir][c + dc]?.color !== p.color) {
+        moves.push(Array.of(r + dir, c + dc) as [number, number]);
+      } else if (ep && ep[0] === r + dir && ep[1] === c + dc && b[r][c + dc]?.type === 'p' && b[r][c + dc]?.color !== p.color) {
         moves.push(Array.of(r + dir, c + dc) as [number, number]);
       }
     }
@@ -60,13 +72,14 @@ export function isKingInCheck(b: Board, color: PieceColor): boolean {
   return false;
 }
 
-export function getLegalMoves(b: Board, r: number, c: number): [number, number][] {
+export function getLegalMoves(b: Board, r: number, c: number, ep: EpSquare = null): [number, number][] {
   const p = b[r]?.[c];
   if (!p) return [];
-  return getPseudoMoves(b, r, c).filter(([nr, nc]) => {
+  return getPseudoMoves(b, r, c, ep).filter(([nr, nc]) => {
     const next = cloneBoard(b);
     next[nr][nc] = { ...p, moved: true };
     next[r][c] = null;
+    if (p.type === 'p' && nc !== c && !b[nr][nc]) next[r][nc] = null; // en passant
     if (p.type === 'k' && Math.abs(nc - c) === 2) {
       if (isKingInCheck(b, p.color)) return false;
       const midCol = nc === 6 ? 5 : 3;
@@ -79,9 +92,9 @@ export function getLegalMoves(b: Board, r: number, c: number): [number, number][
   });
 }
 
-function hasAnyLegalMove(b: Board, color: PieceColor): boolean {
+function hasAnyLegalMove(b: Board, color: PieceColor, ep: EpSquare = null): boolean {
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-    if (b[r][c]?.color === color && getLegalMoves(b, r, c).length > 0) return true;
+    if (b[r][c]?.color === color && getLegalMoves(b, r, c, ep).length > 0) return true;
   }
   return false;
 }
@@ -94,10 +107,11 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
   const [tr, tc] = to;
   const piece = state.board[fr]?.[fc];
   if (!piece || piece.color !== state.turn) return state;
-  if (!getLegalMoves(state.board, fr, fc).some(([mr, mc]) => mr === tr && mc === tc)) return state;
+  if (!getLegalMoves(state.board, fr, fc, epSquareOf(state)).some(([mr, mc]) => mr === tr && mc === tc)) return state;
 
   const nextBoard = cloneBoard(state.board);
-  const captured = nextBoard[tr][tc];
+  let captured = nextBoard[tr][tc];
+  if (piece.type === 'p' && tc !== fc && !captured) { captured = nextBoard[fr][tc]; nextBoard[fr][tc] = null; } // en passant
   const movedPiece: ChessPiece = { ...piece, moved: true };
   if (movedPiece.type === 'p' && (tr === 0 || tr === 7)) movedPiece.type = 'q';
   nextBoard[tr][tc] = movedPiece;
@@ -116,7 +130,7 @@ export function makeChessMove(state: ChessGameState, playerId: string, from: [nu
   const capB = state.turn === 'b' && captured ? state.capturedByBlack.concat(captured) : state.capturedByBlack;
   const nextTurn: PieceColor = state.turn === 'w' ? 'b' : 'w';
   const check = isKingInCheck(nextBoard, nextTurn);
-  const anyMove = hasAnyLegalMove(nextBoard, nextTurn);
+  const anyMove = hasAnyLegalMove(nextBoard, nextTurn, epSquareOf({ board: nextBoard, lastMove: { from, to } }));
   const moverName = state.turn === 'w' ? state.whiteName : state.blackName;
   const nextName = nextTurn === 'w' ? state.whiteName : state.blackName;
 

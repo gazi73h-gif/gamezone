@@ -41,6 +41,7 @@ export function syncSeats(gameType: string, state: unknown, roomPlayers: RoomPla
 export function hasFreeSeat(gameType: string, state: unknown): boolean {
   if (gameType === 'ludo' && state) {
     const s = state as LudoGameState;
+    if (!Array.isArray(s.playerOrder)) return false;
     return s.playerOrder.length < LUDO_SEATS || s.playerOrder.some(isLudoBot);
   }
   if (gameType === 'rummy') return isTileRummyState(state) && state.playerOrder.some(isRummyBot);

@@ -1,25 +1,12 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
-import { BOT_ID, ChessGameState, ChessPiece, computeBotMove, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
+import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { BOT_ID, ChessGameState, ChessPiece, epSquareOf, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
+import { requestBotMove } from '@/lib/chessBot';
+import { playSound } from '@/lib/sound';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, ShieldAlert, Undo2, History, Sparkles } from 'lucide-react';
 function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    const tone = (freq: number, endFreq: number, dur: number, delay: number, wave: OscillatorType, vol: number) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = wave; o.frequency.setValueAtTime(freq, now + delay);
-      if (endFreq !== freq) o.frequency.exponentialRampToValueAtTime(endFreq, now + delay + dur);
-      g.gain.setValueAtTime(vol, now + delay); g.gain.exponentialRampToValueAtTime(0.001, now + delay + dur);
-      o.connect(g); g.connect(ctx.destination); o.start(now + delay); o.stop(now + delay + dur + 0.02);
-    };
-    if (type === 'move') { tone(190, 68, 0.09, 0, 'triangle', 0.45); tone(620, 140, 0.04, 0, 'sine', 0.25); }
-    else if (type === 'capture') { tone(150, 48, 0.14, 0, 'sawtooth', 0.5); tone(420, 95, 0.08, 0.03, 'triangle', 0.45); }
-    else if (type === 'check') { tone(130, 55, 0.22, 0, 'triangle', 0.5); tone(740, 740, 0.28, 0.02, 'sine', 0.35); tone(987.77, 987.77, 0.35, 0.14, 'sine', 0.4); }
-    else { tone(523.25, 523.25, 0.22, 0, 'triangle', 0.35); tone(659.25, 659.25, 0.22, 0.13, 'triangle', 0.35); tone(783.99, 783.99, 0.25, 0.26, 'triangle', 0.4); tone(1046.5, 1046.5, 0.55, 0.4, 'sine', 0.45); }
-  } catch {}
+  playSound(type);
 }
 interface ChessGameProps { gameState: ChessGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: ChessGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
 function ChessPiece3D({ piece }: { piece: ChessPiece }) {
@@ -55,17 +42,27 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
     }
   }, [gameState.status, gameState.winnerId, gameState.winnerName, currentPlayerId]);
 
+  // boti mendon në sfond (Web Worker). Çelësi është vetë pozicioni, që rifreskimi i faqes
+  // çdo 2 sekonda të mos e ndërpresë llogaritjen; përgjigjja e vjetër injorohet nëse pozicioni ndryshoi.
+  const isBotTurn = gameState.status === 'playing' && isHost &&
+    ((gameState.turn === 'w' && gameState.whiteId === BOT_ID) || (gameState.turn === 'b' && gameState.blackId === BOT_ID));
+  const botKey = isBotTurn ? JSON.stringify([gameState.board, gameState.turn, gameState.lastMove, gameState.aiDifficulty]) : '';
+  const applyBotMove = useEffectEvent((key: string, mv: { from: [number, number]; to: [number, number] }) => {
+    const current = JSON.stringify([gameState.board, gameState.turn, gameState.lastMove, gameState.aiDifficulty]);
+    if (current === key) void onUpdateState(makeChessMove(gameState, BOT_ID, mv.from, mv.to));
+  });
+  const botInput = useEffectEvent(() => gameState);
   useEffect(() => {
-    if (gameState.status !== 'playing' || !isHost) return;
-    const isBotTurn = (gameState.turn === 'w' && gameState.whiteId === BOT_ID) || (gameState.turn === 'b' && gameState.blackId === BOT_ID);
-    if (!isBotTurn) return;
+    if (!botKey) return;
+    let cancelled = false;
     const timer = setTimeout(async () => {
-      const mv = computeBotMove(gameState);
-      if (mv) await onUpdateState(makeChessMove(gameState, BOT_ID, mv.from, mv.to));
-    }, 650);
-    return () => clearTimeout(timer);
-  }, [gameState, isHost, onUpdateState]);
+      const mv = await requestBotMove(botInput());
+      if (!cancelled && mv) applyBotMove(botKey, mv);
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [botKey]);
   const prevMoveRef = useRef<string>('');
+  const capturedRef = useRef(gameState.capturedByWhite.length + gameState.capturedByBlack.length);
   useEffect(() => {
     if (!gameState.lastMove) return;
     const key = `${gameState.lastMove.from.join(',')}-${gameState.lastMove.to.join(',')}-${gameState.status}`;
@@ -73,8 +70,10 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
     prevMoveRef.current = key;
     if (gameState.status === 'finished') playChessSound('win');
     else if (gameState.inCheck) playChessSound('check');
+    else if ((gameState.capturedByWhite.length + gameState.capturedByBlack.length) > capturedRef.current) playChessSound('capture');
     else playChessSound('move');
-  }, [gameState.lastMove, gameState.inCheck, gameState.status]);
+    capturedRef.current = gameState.capturedByWhite.length + gameState.capturedByBlack.length;
+  }, [gameState.lastMove, gameState.inCheck, gameState.status, gameState.capturedByWhite.length, gameState.capturedByBlack.length]);
   const handleUndo = async () => {
     if (!gameState.prevBoard || gameState.status !== 'playing') return;
     setSelected(null);
@@ -83,7 +82,7 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
   const handleDifficulty = async (diff: 'easy' | 'medium' | 'hard') => {
     await onUpdateState({ ...gameState, aiDifficulty: diff });
   };
-  const legalTargets = selected ? getLegalMoves(gameState.board, selected.at(0)!, selected.at(1)!) : [];
+  const legalTargets = selected ? getLegalMoves(gameState.board, selected.at(0)!, selected.at(1)!, epSquareOf(gameState)) : [];
   const handleCellClick = async (r: number, c: number) => {
     if (!isMyTurn) return;
     if (selected && legalTargets.some(([lr, lc]) => lr === r && lc === c)) {
@@ -145,7 +144,7 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
                 const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-amber-300' : isLast ? (isLight ? 'bg-amber-200/95' : 'bg-amber-600/90') : isLight ? 'bg-gradient-to-br from-[#f8eed9] to-[#e2cba1]' : 'bg-gradient-to-br from-[#6b4226] to-[#422512]';
                 const txtCol = isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
                 return (
-                  <button key={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-all ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
+                  <button key={`${r}-${c}`} data-square={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-all ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
                     {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[9px] font-black select-none ${txtCol}`}>{8 - r}</span>}
                     {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[9px] font-black select-none ${txtCol}`}>{files[c]}</span>}
                     {piece && (<div style={{ transform: view3D ? 'rotateX(-14deg) translateY(-6px)' : 'none' }} className={`w-[92%] h-[92%] z-10 transition-transform duration-200 ${isSel ? 'scale-115 -translate-y-2' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { recordWin } from '@/lib/supabase';
+import { playSound } from '@/lib/sound';
 import {
   UnoCard,
   UnoColor,
@@ -98,6 +99,19 @@ export default function UnoGame({
   onRestartGame,
 }: UnoGameProps) {
   const [pendingWildCardId, setPendingWildCardId] = useState<string | null>(null);
+
+  // tingujt: letra e luajtur (toka rritet) dhe letra e marrë (pakoja zvogëlohet)
+  const unoKey = `${gameState.deck.length}|${gameState.discardPile.length}`;
+  const unoRef = useRef('');
+  useEffect(() => {
+    const prev = unoRef.current;
+    unoRef.current = unoKey;
+    if (!prev) return;
+    const [deck, pile] = unoKey.split('|').map(Number);
+    const [pDeck, pPile] = prev.split('|').map(Number);
+    if (pile > pPile) playSound('cardPlay');
+    else if (deck < pDeck) playSound('cardDraw');
+  }, [unoKey]);
   const winRecordedRef = useRef(false);
   useEffect(() => {
     if (gameState.status !== 'finished') { winRecordedRef.current = false; return; }

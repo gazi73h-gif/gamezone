@@ -43,9 +43,13 @@ export default function HomePage() {
     const cleanup = async () => {
       const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data } = await supabase.from('rooms').select('code').eq('status', 'waiting').lt('created_at', cutoff).limit(50);
-      const codes = (data || []).map((r) => r.code);
+      const old = (data || []).map((r) => r.code);
+      if (old.length === 0) return;
+      // fshi vetëm dhomat pa asnjë lojtar (një dhomë mund të kthehet "në pritje" kur largohet boti)
+      const { data: seated } = await supabase.from('room_players').select('room_code').in('room_code', old);
+      const busy = new Set((seated || []).map((p) => p.room_code));
+      const codes = old.filter((c) => !busy.has(c));
       if (codes.length === 0) return;
-      await supabase.from('room_players').delete().in('room_code', codes);
       await supabase.from('rooms').delete().in('code', codes);
     };
     cleanup();

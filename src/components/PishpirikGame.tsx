@@ -8,6 +8,7 @@ import {
   Suit,
 } from '@/lib/pishpirikLogic';
 import { recordWin } from '@/lib/supabase';
+import { playSound } from '@/lib/sound';
 import { Trophy, Layers, Flame, RotateCcw } from 'lucide-react';
 
 interface PishpirikGameProps {
@@ -79,6 +80,20 @@ export default function PishpirikGame({
   onRestartGame,
 }: PishpirikGameProps) {
   const me = gameState.players[currentPlayerId];
+  // tingujt: letra e luajtur (dora zvogëlohet) dhe shpërndarja (pakoja zvogëlohet)
+  const handCards = Object.values(gameState.players).reduce((a, p) => a + p.hand.length, 0);
+  const cardKey = `${gameState.deck.length}|${handCards}`;
+  const cardRef = useRef('');
+  useEffect(() => {
+    const prev = cardRef.current;
+    cardRef.current = cardKey;
+    if (!prev) return;
+    const [deck, hands] = cardKey.split('|').map(Number);
+    const [pDeck, pHands] = prev.split('|').map(Number);
+    if (hands < pHands) playSound('cardPlay');
+    else if (deck < pDeck) playSound('cardDraw');
+  }, [cardKey]);
+
   useEffect(() => { if (gameState.status !== 'playing' || !isHost || gameState.currentTurn !== 'BOT_PISH') return; const h = gameState.players['BOT_PISH']?.hand || []; if (h.length === 0) return; const t = setTimeout(async () => { const top = gameState.table.at(-1); const pick = h.find((x) => top && x.rank === top.rank) || h.find((x) => x.rank === 'J') || h.at(0)!; await onUpdateState(playPishpirikCard(gameState, 'BOT_PISH', pick.id)); }, 850); return () => clearTimeout(t); }, [gameState, isHost, onUpdateState]);
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
   const activePlayerName = gameState.players[gameState.currentTurn]?.nickname || '...';
