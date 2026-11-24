@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom, MAX_SEATS } from '../lib/lobby';
 import { useAccount, bonusAvailable } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
-import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight } from 'lucide-react';
+import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight, Pencil, Check, ShieldCheck } from 'lucide-react';
 
 interface GameInfo { id: string; title: string; subtitle: string; players: string; badge?: string; }
 
@@ -31,6 +31,7 @@ export default function HomePage() {
   const myId = account.user?.id ?? playerId;
   const online = !!account.user && account.serverReady === true && !!account.profile;
   const [profileNick, setProfileNick] = useState('');
+  const [editingNick, setEditingNick] = useState(false);
   if (account.profile && account.profile.nickname !== profileNick) {
     setProfileNick(account.profile.nickname);
     setNickname(account.profile.nickname);
@@ -152,17 +153,42 @@ export default function HomePage() {
         </div>
 
         <div className="gz-panel rounded-[28px] p-5 sm:p-6">
-          <label htmlFor="nick" className="block font-display font-semibold text-lg mb-3">Si të thërrasim?</label>
-          <div className="flex items-center gap-3">
-            <span className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg">
-              {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
-            </span>
-            <input id="nick" type="text" value={nickname} onChange={(e) => handleSaveNickname(e.target.value)} onBlur={() => { if (online && nickname.trim() && nickname !== account.profile?.nickname) void account.saveNickname(nickname); }} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
-              className="gz-input w-full min-w-0 rounded-2xl px-4 py-3 text-ink placeholder:text-mute/60 font-semibold" />
-          </div>
+          {account.user && !editingNick ? (
+            /* i kyçur: emri dihet, s'ka nevojë për kutinë e nofkës */
+            <div className="flex items-center gap-3">
+              <span className="grid place-items-center w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-xl">
+                {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-mute">Mirë se erdhe,</p>
+                <p className="font-display font-bold text-2xl leading-tight truncate">{nickname || 'Lojtar'}!</p>
+                <p className="flex items-center gap-1 text-xs font-bold text-mint mt-0.5"><ShieldCheck className="w-3.5 h-3.5" /> I kyçur · pikët ruhen në llogari</p>
+              </div>
+              <button onClick={() => setEditingNick(true)} aria-label="Ndrysho nofkën" title="Ndrysho nofkën"
+                className="grid place-items-center w-10 h-10 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition">
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <label htmlFor="nick" className="block font-display font-semibold text-lg mb-3">{account.user ? 'Ndrysho nofkën' : 'Si të thërrasim?'}</label>
+              <form className="flex items-center gap-3" onSubmit={(e) => { e.preventDefault(); if (nickname.trim()) setEditingNick(false); }}>
+                <span className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg">
+                  {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
+                </span>
+                <input id="nick" type="text" value={nickname} autoFocus={editingNick} onChange={(e) => handleSaveNickname(e.target.value)} onBlur={() => { if (online && nickname.trim() && nickname !== account.profile?.nickname) void account.saveNickname(nickname); }} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
+                  className="gz-input w-full min-w-0 rounded-2xl px-4 py-3 text-ink placeholder:text-mute/60 font-semibold" />
+                {editingNick && (
+                  <button type="submit" aria-label="Ruaj nofkën" className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-mint text-night cursor-pointer">
+                    <Check className="w-5 h-5" />
+                  </button>
+                )}
+              </form>
+            </>
+          )}
 
           <div className="flex items-center gap-3 my-5 text-xs font-bold uppercase tracking-widest text-mute/70">
-            <span className="h-px flex-1 bg-white/10" /> ose hyr me kod <span className="h-px flex-1 bg-white/10" />
+            <span className="h-px flex-1 bg-white/10" /> {account.user ? 'hyr në dhomën e shokut' : 'ose hyr me kod'} <span className="h-px flex-1 bg-white/10" />
           </div>
 
           <form onSubmit={(e) => { e.preventDefault(); joinRoomByCode(joinCode); }} className="flex gap-2">
