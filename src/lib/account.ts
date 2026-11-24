@@ -11,6 +11,30 @@ export interface Profile {
   nickname: string;
   tokens: number;
   last_bonus: string | null;
+  avatar_url?: string | null;
+}
+
+export type OAuthProvider = 'facebook' | 'google';
+
+// foto dhe emri nga Facebook/Google (Supabase i ruan te user_metadata)
+export const metaAvatar = (u: User | null): string | null =>
+  (u?.user_metadata?.avatar_url as string) || (u?.user_metadata?.picture as string) || null;
+const metaName = (u: User | null): string => {
+  const full = (u?.user_metadata?.full_name as string) || (u?.user_metadata?.name as string) || '';
+  return full.trim().split(/\s+/)[0]?.slice(0, 18) || '';
+};
+
+// cilat mënyra kyçjeje janë të ndezura në Supabase (butonat shfaqen vetëm atëherë)
+async function enabledProviders(): Promise<Record<OAuthProvider, boolean>> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
+    });
+    const j = await res.json();
+    return { facebook: !!j.external?.facebook, google: !!j.external?.google };
+  } catch {
+    return { facebook: false, google: false };
+  }
 }
 
 const ID_KEY = 'gamezone_player_id';
@@ -40,6 +64,13 @@ export function useAccount() {
   const [serverReady, setServerReady] = useState<boolean | null>(null);
   const [ready, setReady] = useState(false);
   const [linkError, setLinkError] = useState('');
+  const [providers, setProviders] = useState<Record<OAuthProvider, boolean>>({ facebook: false, google: false });
+
+  useEffect(() => {
+    let alive = true;
+    enabledProviders().then((p) => { if (alive) setProviders(p); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -69,8 +100,15 @@ export function useAccount() {
     syncAccountId(user);
     if (!user) return;
     let alive = true;
-    const nick = (() => { try { return window.localStorage.getItem(NICK_KEY) || ''; } catch { return ''; } })();
-    supabase.rpc('ensure_profile', { p_nickname: nick }).then(({ data, error }) => {
+    const stored = (() => { try { return window.localStorage.getItem(NICK_KEY) || ''; } catch { return ''; } })();
+    const nick = stored || metaName(user);
+    const avatar = metaAvatar(user);
+    (async () => {
+      let res = await supabase.rpc('ensure_profile', { p_nickname: nick, p_avatar: avatar });
+      // databaza ende pa skriptin e fotove: funksioni i vjetër merr vetëm nofkën
+      if (res.error?.code === 'PGRST202') res = await supabase.rpc('ensure_profile', { p_nickname: nick });
+      return res;
+    })().then(({ data, error }) => {
       if (!alive) return;
       if (error) { setServerReady(false); return; }
       const p = data as Profile;
@@ -87,6 +125,21 @@ export function useAccount() {
       options: { emailRedirectTo: window.location.origin },
     });
     return error?.message ?? null;
+  }, []);
+
+  const signInWith = useCallback(async (provider: OAuthProvider) => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
+    return error?.message ?? null;
+  }, []);
+
+  // fshin llogarinë, profilin dhe tokens (kërkesë e Facebook-ut: "Data deletion")
+  const deleteAccount = useCallback(async () => {
+    const { error } = await supabase.rpc('delete_my_account');
+    if (error) return error.message;
+    await supabase.auth.signOut();
+    setProfile(null);
+    setServerReady(null);
+    return null;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -108,5 +161,6 @@ export function useAccount() {
   }, []);
 
   const clearLinkError = useCallback(() => setLinkError(''), []);
-  return { ready, user, profile, serverReady, signIn, signOut, claimBonus, saveNickname, linkError, clearLinkError };
+  const avatar = profile?.avatar_url || metaAvatar(user);
+  return { ready, user, profile, avatar, serverReady, providers, signIn, signInWith, signOut, deleteAccount, claimBonus, saveNickname, linkError, clearLinkError };
 }

@@ -10,6 +10,7 @@ import {
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
 import SoundToggle from './SoundToggle';
+import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
 import { ArrowLeft, BookOpen, Eye, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
 
@@ -61,9 +62,10 @@ const TileBack = ({ small }: { small?: boolean }) => <div className={`rk-tile rk
 
 /* ───────────── lojtarët ───────────── */
 
-function Avatar({ name, bot, color, active, progress, seconds }: {
-  name: string; bot: boolean; color: string; active: boolean; progress: number; seconds: number;
+function Avatar({ id, name, bot, color, active, progress, seconds }: {
+  id?: string; name: string; bot: boolean; color: string; active: boolean; progress: number; seconds: number;
 }) {
+  const photo = useAvatar(id);
   const C = 2 * Math.PI * 21;
   return (
     <div className={`rk-avatar relative shrink-0 ${active ? 'rk-active' : ''}`}>
@@ -76,19 +78,19 @@ function Avatar({ name, bot, color, active, progress, seconds }: {
       </svg>
       <div className="absolute inset-[11%] rounded-full grid place-items-center font-display font-bold text-white text-sm"
         style={{ background: `radial-gradient(circle at 35% 30%, ${color}, #1b1340)` }}>
-        {bot ? '🤖' : name.slice(0, 2).toUpperCase()}
+        <UserAvatar src={photo} name={name} bot={bot} className="w-full h-full rounded-full" />
       </div>
       {active && <span className="absolute -bottom-1 -right-1 grid place-items-center min-w-5 h-5 px-1 rounded-full bg-night text-gold text-[10px] font-extrabold border border-gold/60">{seconds}</span>}
     </div>
   );
 }
 
-function Seat({ name, count, points, active, progress, seconds, bot, color, vertical }: {
-  name: string; count: number; points: number; active: boolean; progress: number; seconds: number; bot: boolean; color: string; vertical: boolean;
+function Seat({ id, name, count, points, active, progress, seconds, bot, color, vertical }: {
+  id: string; name: string; count: number; points: number; active: boolean; progress: number; seconds: number; bot: boolean; color: string; vertical: boolean;
 }) {
   return (
     <div className={`flex ${vertical ? 'flex-col' : 'flex-row'} items-center gap-1`}>
-      <Avatar name={name} bot={bot} color={color} active={active} progress={progress} seconds={seconds} />
+      <Avatar id={id} name={name} bot={bot} color={color} active={active} progress={progress} seconds={seconds} />
       <div className={`flex flex-col ${vertical ? 'items-center' : 'items-start'} gap-0.5`}>
         <span className={`rk-name ${active ? 'rk-name-active' : ''}`} style={{ maxWidth: vertical ? 72 : 120 }}>{name}</span>
         <div className="flex items-center gap-1">
@@ -456,7 +458,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     const id = seatAt(offset);
     const p = s.players[id];
     if (!p || id === currentPlayerId) return null;
-    return <Seat name={p.nickname} count={p.hand.length} points={s.points[id] ?? 0} active={s.status === 'playing' && s.currentTurn === id}
+    return <Seat id={id} name={p.nickname} count={p.hand.length} points={s.points[id] ?? 0} active={s.status === 'playing' && s.currentTurn === id}
       progress={progress} seconds={seconds} bot={isRummyBot(id)} color={colorOf(id)} vertical={vertical} />;
   };
 
@@ -550,7 +552,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
       <div className="rk-bottom">
         <div className="rk-me">
           <div className="flex items-center gap-2 min-w-0">
-            <Avatar name={me?.nickname ?? 'Ti'} bot={false} color={colorOf(currentPlayerId)} active={myTurn} progress={progress} seconds={seconds} />
+            <Avatar id={currentPlayerId} name={me?.nickname ?? 'Ti'} bot={false} color={colorOf(currentPlayerId)} active={myTurn} progress={progress} seconds={seconds} />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-display font-semibold text-white truncate">{me?.nickname ?? 'Ti'}</span>

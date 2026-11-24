@@ -108,7 +108,7 @@ export default function PishpirikGame({
         {gameState.playerOrder.map((id) => {
           const p = gameState.players[id];
           return (
-            <PlayerChip key={id} name={p.nickname} me={id === currentPlayerId} bot={id.startsWith('BOT')} color={colorOf(id)}
+            <PlayerChip key={id} id={id} name={p.nickname} me={id === currentPlayerId} bot={id.startsWith('BOT')} color={colorOf(id)}
               active={gameState.currentTurn === id}
               sub={<>{p.captured.length} letra · <Flame className="inline w-3 h-3 text-gold -mt-0.5" /> {p.pishpiriks}</>} />
           );

@@ -7,6 +7,7 @@ import {
 } from '@/lib/ludoLogic';
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
+import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
 import { RotateCcw, Trophy } from 'lucide-react';
 
@@ -575,7 +576,7 @@ export default function LudoGame({
                 >
                   <div className="relative w-9 h-9 rounded-full grid place-items-center font-display font-bold text-white text-sm"
                     style={{ background: active ? 'rgba(255,255,255,0.22)' : z.dark, boxShadow: `0 0 0 2px ${active ? '#fff' : z.light}` }}>
-                    {isBot ? '🤖' : p.nickname.slice(0, 2).toUpperCase()}
+                    <LudoFace id={pid} name={p.nickname} bot={isBot} />
                   </div>
                   <span className="text-white font-bold text-[11px] leading-tight truncate w-full text-center">
                     {isSelf ? 'Ti' : p.nickname}
@@ -641,4 +642,10 @@ export default function LudoGame({
       `}</style>
     </div>
   );
+}
+
+// foto e lojtarit (Facebook/Google) ose inicialet
+function LudoFace({ id, name, bot }: { id: string; name: string; bot: boolean }) {
+  const photo = useAvatar(id);
+  return <UserAvatar src={photo} name={name} bot={bot} className="w-full h-full rounded-full overflow-hidden" />;
 }

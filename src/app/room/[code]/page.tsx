@@ -16,6 +16,7 @@ import { initUnoGame, UnoGameState } from '../../../lib/unoLogic';
 import LudoGame from '../../../components/LudoGame';
 import GameArt from '../../../components/GameArt';
 import SoundToggle from '../../../components/SoundToggle';
+import { setRoomAvatars, UserAvatar } from '../../../lib/avatars';
 import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
@@ -26,6 +27,7 @@ import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucid
 
 interface Player {
   id: string;
+  avatar_url?: string | null;
   player_id: string;
   nickname: string;
   seat_order: number;
@@ -293,9 +295,14 @@ export default function RoomLobbyPage() {
   const amHost = !!room && !!currentPlayerId && room.host_id === currentPlayerId;
   const realPlayerCount = players.filter((p) => !BOT_IDS.includes(p.player_id)).length;
   const hostNick = players.find((p) => p.player_id === room?.host_id)?.nickname || 'Lojtar';
+  const hostAvatar = players.find((p) => p.player_id === room?.host_id)?.avatar_url || null;
+  // fotot e lojtarëve për lojërat (lexohen sipas ID-së)
+  useEffect(() => {
+    setRoomAvatars(Object.fromEntries(players.filter((p) => p.avatar_url).map((p) => [p.player_id, p.avatar_url as string])));
+  }, [players]);
   const lobbyEntry = amHost && room && isJoinable(room.status, room.game_state, room.game_type, realPlayerCount)
     ? JSON.stringify({
-        code: room.code, game_type: room.game_type, hostName: hostNick, playerCount: realPlayerCount,
+        code: room.code, game_type: room.game_type, hostName: hostNick, hostAvatar, playerCount: realPlayerCount,
         status: room.status === 'waiting' ? 'waiting' : hasBot(room.game_state) ? 'bot' : 'seats',
       })
     : '';
@@ -690,7 +697,7 @@ export default function RoomLobbyPage() {
               {players.map((p, i) => (
                 <li key={p.id} className="flex items-center gap-2.5 rounded-2xl bg-night/40 border border-white/10 p-2.5">
                   <span className={`grid place-items-center w-10 h-10 shrink-0 rounded-xl font-display font-bold text-white bg-gradient-to-br ${['from-[#ff6b6b] to-[#e03131]', 'from-[#4dabf7] to-[#1c7ed6]', 'from-[#ffd43b] to-[#f59f00]', 'from-[#51cf66] to-[#2f9e44]', 'from-[#cc5de8] to-[#9c36b5]', 'from-[#ff922b] to-[#e8590c]'][i % 6]}`}>
-                    {p.nickname.slice(0, 2).toUpperCase()}
+                    <UserAvatar src={p.avatar_url} name={p.nickname} className="w-full h-full rounded-xl" />
                   </span>
                   <div className="min-w-0">
                     <p className="font-bold text-sm truncate">{p.nickname}</p>

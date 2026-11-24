@@ -193,7 +193,7 @@ export default function UnoGame({
         {gameState.playerOrder.map((id) => {
           const p = gameState.players[id];
           return (
-            <PlayerChip key={id} name={p.nickname} me={id === currentPlayerId} bot={id.startsWith('BOT')} color={colorOf(id)}
+            <PlayerChip key={id} id={id} name={p.nickname} me={id === currentPlayerId} bot={id.startsWith('BOT')} color={colorOf(id)}
               active={activePlayerId === id} sub={`${p.hand.length} letra`}
               badge={p.calledUno ? <span className="text-[9px] font-black bg-coral text-white px-1.5 rounded-full">UNO!</span> : undefined} />
           );

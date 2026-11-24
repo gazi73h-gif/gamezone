@@ -2,14 +2,16 @@
 // Pjesët e përbashkëta të pamjes për lojërat: lojtari me unazën e radhës, tavolina me çohë,
 // letrat dhe dora në formë freskore. Ngjyrat dhe hijet janë si te Okey-u, që të gjitha lojërat të ngjajnë.
 import React from 'react';
+import { useAvatar, UserAvatar } from '@/lib/avatars';
 
 export const SEAT_COLORS = ['#ffc83d', '#4dabf7', '#ff6b6b', '#51cf66', '#cc5de8', '#ff922b'];
 
 /* ── lojtari: avatar me unazë që ndriçon kur ka radhën ── */
-export function PlayerChip({ name, active, bot, color, sub, badge, me, onClick, selected }: {
-  name: string; active: boolean; bot?: boolean; color: string; sub?: React.ReactNode; badge?: React.ReactNode;
+export function PlayerChip({ id, name, active, bot, color, sub, badge, me, onClick, selected }: {
+  id?: string; name: string; active: boolean; bot?: boolean; color: string; sub?: React.ReactNode; badge?: React.ReactNode;
   me?: boolean; onClick?: () => void; selected?: boolean;
 }) {
+  const photo = useAvatar(id);
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
@@ -18,7 +20,7 @@ export function PlayerChip({ name, active, bot, color, sub, badge, me, onClick, 
       style={{ ['--seat' as string]: color }}
     >
       <span className="gk-avatar" aria-hidden>
-        {bot ? '🤖' : name.slice(0, 2).toUpperCase()}
+        <UserAvatar src={photo} name={name} bot={bot} className="w-full h-full rounded-full" />
       </span>
       <span className="min-w-0 flex flex-col items-start">
         <span className="flex items-center gap-1 max-w-full">

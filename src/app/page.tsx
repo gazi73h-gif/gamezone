@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom, MAX_SEATS } from '../lib/lobby';
 import { useAccount, bonusAvailable } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
+import { UserAvatar } from '../lib/avatars';
 import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight, Pencil, Check, ShieldCheck } from 'lucide-react';
 
 interface GameInfo { id: string; title: string; subtitle: string; players: string; badge?: string; }
@@ -85,7 +86,10 @@ export default function HomePage() {
     try {
       const code = Math.floor(1000 + Math.random() * 9000).toString();
       const { error: re } = await supabase.from('rooms').insert([{ code, game_type: gameId, host_id: myId, status: 'waiting' }]); if (re) throw re;
-      const { error: pe } = await supabase.from('room_players').insert([{ room_code: code, player_id: myId, nickname: nickname.trim(), seat_order: 1 }]); if (pe) throw pe;
+      const seat = { room_code: code, player_id: myId, nickname: nickname.trim(), seat_order: 1 };
+      let { error: pe } = await supabase.from('room_players').insert([{ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }]);
+      if (pe?.code === 'PGRST204') ({ error: pe } = await supabase.from('room_players').insert([seat]));
+      if (pe) throw pe;
       router.push(`/room/${code}`);
     } catch { setErrorMsg('Gabim gjatë krijimit të dhomës. Kontrolloni lidhjen me Supabase.'); } finally { setLoading(false); }
   };
@@ -98,7 +102,10 @@ export default function HomePage() {
       const { data: room, error: fe } = await supabase.from('rooms').select('*').eq('code', targetCode).single();
       if (fe || !room) { setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.'); setLoading(false); return; }
       const { data: players } = await supabase.from('room_players').select('*').eq('room_code', targetCode);
-      const { error: je } = await supabase.from('room_players').upsert({ room_code: targetCode, player_id: myId, nickname: nickname.trim(), seat_order: (players?.length || 0) + 1 }, { onConflict: 'room_code,player_id' }); if (je) throw je;
+      const seat = { room_code: targetCode, player_id: myId, nickname: nickname.trim(), seat_order: (players?.length || 0) + 1 };
+      let { error: je } = await supabase.from('room_players').upsert({ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }, { onConflict: 'room_code,player_id' });
+      if (je?.code === 'PGRST204') ({ error: je } = await supabase.from('room_players').upsert(seat, { onConflict: 'room_code,player_id' }));
+      if (je) throw je;
       router.push(`/room/${targetCode}`);
     } catch { setErrorMsg('Gabim gjatë hyrjes në dhomë.'); } finally { setLoading(false); }
   };
@@ -156,9 +163,7 @@ export default function HomePage() {
           {account.user && !editingNick ? (
             /* i kyçur: emri dihet, s'ka nevojë për kutinë e nofkës */
             <div className="flex items-center gap-3">
-              <span className="grid place-items-center w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-xl">
-                {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
-              </span>
+              <UserAvatar src={account.avatar} name={nickname} className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-xl" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-mute">Mirë se erdhe,</p>
                 <p className="font-display font-bold text-2xl leading-tight truncate">{nickname || 'Lojtar'}!</p>
@@ -173,9 +178,7 @@ export default function HomePage() {
             <>
               <label htmlFor="nick" className="block font-display font-semibold text-lg mb-3">{account.user ? 'Ndrysho nofkën' : 'Si të thërrasim?'}</label>
               <form className="flex items-center gap-3" onSubmit={(e) => { e.preventDefault(); if (nickname.trim()) setEditingNick(false); }}>
-                <span className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg">
-                  {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
-                </span>
+                <UserAvatar src={account.avatar} name={nickname} className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg" />
                 <input id="nick" type="text" value={nickname} autoFocus={editingNick} onChange={(e) => handleSaveNickname(e.target.value)} onBlur={() => { if (online && nickname.trim() && nickname !== account.profile?.nickname) void account.saveNickname(nickname); }} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
                   className="gz-input w-full min-w-0 rounded-2xl px-4 py-3 text-ink placeholder:text-mute/60 font-semibold" />
                 {editingNick && (
@@ -226,8 +229,8 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    <span className="grid place-items-center w-8 h-8 shrink-0 rounded-full font-display font-bold text-xs text-white" style={{ background: `linear-gradient(135deg, ${t.from}, ${t.to})` }}>
-                      {rm.hostName.slice(0, 2).toUpperCase()}
+                    <span className="w-8 h-8 shrink-0 rounded-full overflow-hidden font-display font-bold text-xs text-white" style={{ background: `linear-gradient(135deg, ${t.from}, ${t.to})` }}>
+                      <UserAvatar src={rm.hostAvatar} name={rm.hostName} className="w-full h-full" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold truncate">{rm.hostName}</div>

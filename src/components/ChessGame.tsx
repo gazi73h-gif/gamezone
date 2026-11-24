@@ -123,7 +123,7 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
         <div className="flex flex-wrap justify-center gap-2">
           <GameKitStyles />
           {[{ id: gameState.whiteId, name: gameState.whiteName, color: 'w' as const, cap: gameState.capturedByWhite }, { id: gameState.blackId, name: gameState.blackName, color: 'b' as const, cap: gameState.capturedByBlack }].map((pl) => (
-            <PlayerChip key={pl.color} name={pl.name.replace('🤖 ', '')} me={pl.id === currentPlayerId} bot={pl.id === BOT_ID}
+            <PlayerChip key={pl.color} id={pl.id} name={pl.name.replace('🤖 ', '')} me={pl.id === currentPlayerId} bot={pl.id === BOT_ID}
               color={pl.color === 'w' ? '#e9d8b4' : '#6b4226'}
               active={gameState.status === 'playing' && gameState.turn === pl.color}
               sub={pl.cap.length ? (

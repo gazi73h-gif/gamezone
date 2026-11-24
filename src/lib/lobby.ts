@@ -17,6 +17,7 @@ export interface LobbyRoom {
   code: string;
   game_type: string;
   hostName: string;
+  hostAvatar?: string | null;
   playerCount: number;
   status: LobbyStatus; // në pritje / duke luajtur me bot / lojë me vende të lira
 }
@@ -46,6 +47,7 @@ export function lobbyRoomsFrom(state: Record<string, unknown[]>): LobbyRoom[] {
         code: m.code,
         game_type: m.game_type,
         hostName: m.hostName || 'Lojtar',
+        hostAvatar: m.hostAvatar || null,
         playerCount: m.playerCount || 1,
         status: m.status === 'bot' || m.status === 'seats' ? m.status : 'waiting',
       });

@@ -177,7 +177,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
           {allPlayers.map((p, i) => {
             const total = getGrandTotal(gameState.sheets[p.player_id] || createEmptySheet());
             return (
-              <PlayerChip key={p.player_id} name={p.nickname} me={p.player_id === currentPlayerId} bot={p.player_id.startsWith('BOT')}
+              <PlayerChip key={p.player_id} id={p.player_id} name={p.nickname} me={p.player_id === currentPlayerId} bot={p.player_id.startsWith('BOT')}
                 color={SEAT_COLORS[i % SEAT_COLORS.length]} active={p.player_id === gameState.currentTurnPlayerId && !gameState.winnerId}
                 selected={selectedViewPlayer === p.player_id} onClick={() => setSelectedViewPlayer(p.player_id)}
                 sub={<span className="text-gold font-display">{total} pikë</span>} />
