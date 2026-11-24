@@ -106,24 +106,24 @@ export default function HomePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
       {/* ── Shiriti i sipërm ── */}
-      <header className="flex items-center justify-between gap-3 py-5">
-        <span className="flex items-center gap-2.5 shrink-0">
-          <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-gold to-gold-2 shadow-[0_4px_0_#b86a00] -rotate-8">
+      <header className="flex items-center justify-between gap-2 py-4 sm:py-5">
+        <span className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <span className="grid place-items-center w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-2xl bg-gradient-to-br from-gold to-gold-2 shadow-[0_4px_0_#b86a00] -rotate-8">
             <span className="grid grid-cols-2 gap-1">
               {[0, 1, 2, 3].map((i) => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#2a1600]" />)}
             </span>
           </span>
-          <span className="font-display text-2xl font-bold tracking-tight">
+          <span className="font-display text-xl sm:text-2xl font-bold tracking-tight truncate hidden min-[360px]:inline">
             Game<span className="text-gold">Zone</span>
           </span>
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {(online ? bonusAvailable(account.profile) : canClaimDaily) && (
-            <button aria-label="Merr bonusin ditor +250 tokens" onClick={online ? () => void account.claimBonus() : claimDailyBonus} className="flex items-center gap-1.5 bg-mint/15 hover:bg-mint/25 text-mint border border-mint/40 text-xs sm:text-sm font-extrabold px-3 py-2 rounded-full transition cursor-pointer">
-              <Gift className="w-4 h-4" /> <span className="hidden sm:inline">Bonusi ditor</span> +250
+            <button aria-label="Merr bonusin ditor +250 tokens" title="Bonusi ditor +250" onClick={online ? () => void account.claimBonus() : claimDailyBonus} className="flex items-center gap-1.5 bg-mint/15 hover:bg-mint/25 text-mint border border-mint/40 text-xs sm:text-sm font-extrabold p-2 sm:px-3 rounded-full transition cursor-pointer">
+              <Gift className="w-4 h-4" /> <span className="hidden sm:inline">Bonusi ditor +250</span>
             </button>
           )}
-          <div className="flex items-center gap-1.5 bg-night-2/80 border border-gold/30 pl-1.5 pr-3.5 py-1.5 rounded-full" title={online ? 'Tokens (të ruajtura në server)' : 'Tokens (vetëm në këtë pajisje)'}>
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-night-2/80 border border-gold/30 pl-1 sm:pl-1.5 pr-2.5 sm:pr-3.5 py-1 sm:py-1.5 rounded-full" title={online ? 'Tokens (të ruajtura në server)' : 'Tokens (vetëm në këtë pajisje)'}>
             <span className="grid place-items-center w-6 h-6 rounded-full bg-gold/20"><Coins className="w-4 h-4 text-gold" /></span>
             <span className="font-display font-semibold text-gold">{(online ? account.profile!.tokens : tokens).toLocaleString()}</span>
           </div>

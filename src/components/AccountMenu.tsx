@@ -39,7 +39,7 @@ export default function AccountMenu({ account }: { account: Account }) {
         </button>
       ) : (
         <button onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/15 text-sm font-extrabold px-3.5 py-2 rounded-full cursor-pointer transition">
+          className="flex items-center gap-1.5 bg-gold/15 hover:bg-gold/25 border border-gold/40 text-gold text-sm font-extrabold px-3 py-2 rounded-full cursor-pointer transition whitespace-nowrap">
           <LogIn className="w-4 h-4" /> Kyçu
         </button>
       )}
