@@ -63,6 +63,16 @@ body {
 .gz-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #b86a00; }
 .gz-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* kartat e dhomave të hapura */
+.gz-room { transition: transform .2s ease, box-shadow .2s ease; }
+.gz-room:hover { transform: translateY(-4px); box-shadow: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 18px 40px -14px var(--glow); }
+.gz-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+.gz-status-dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: gz-blink 1.4s ease-in-out infinite; }
+.gz-status-waiting { color: var(--color-mint); background: rgb(46 230 166 / 0.12); }
+.gz-status-bot { color: var(--color-gold); background: rgb(255 200 61 / 0.12); }
+.gz-status-seats { color: #7cc4ff; background: rgb(124 196 255 / 0.12); }
+@keyframes gz-blink { 50% { opacity: .35; } }
+
 @keyframes gz-float {
   0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
   50% { transform: translateY(-6px) rotate(var(--r, 0deg)); }
@@ -70,5 +80,6 @@ body {
 .gz-float { animation: gz-float 4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .gz-float { animation: none; }
+  .gz-float, .gz-status-dot { animation: none; }
+  .gz-room { transition: none; }
 }

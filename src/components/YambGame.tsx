@@ -7,6 +7,8 @@ import {
   calculateScore, canSelectCell, getColumnTotals, getGrandTotal, createEmptySheet
 } from '../lib/yambLogic';
 import { Dices, Lock, Trophy, Bell } from 'lucide-react';
+import { PlayerChip, GameKitStyles, SEAT_COLORS } from './gamekit';
+import { playSound } from '../lib/sound';
 
 interface Player {
   player_id: string;
@@ -26,7 +28,7 @@ const COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'free', label: 'Lirë ↕' },
   { key: 'call', label: 'N (Thirr)' },
 ];
-function DiceFace({ value, locked }: { value: number; locked: boolean }) {
+function DiceFace({ value }: { value: number; locked?: boolean }) {
     const dotPositions: Record<number, number[]> = {
     1: Array.of(4),
     2: Array.of(0, 8),
@@ -38,18 +40,12 @@ function DiceFace({ value, locked }: { value: number; locked: boolean }) {
   const activeDots = dotPositions[value] || Array.of();
 
   return (
-    <div className="grid grid-cols-3 grid-rows-3 gap-1 w-9 h-9 p-0.5">
+    <div className="grid grid-cols-3 grid-rows-3 gap-[3px] w-[70%] h-[70%]">
       {Array.from({ length: 9 }).map((_, idx) => (
         <div key={idx} className="flex items-center justify-center">
           {activeDots.includes(idx) && (
             <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                locked
-                  ? 'bg-slate-950'
-                  : value === 1 || value === 6
-                  ? 'bg-rose-500'
-                  : 'bg-white'
-              }`}
+              className={`yb-pip ${value === 1 ? 'yb-pip-red' : ''}`}
             />
           )}
         </div>
@@ -78,6 +74,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
 
   const handleRollDice = async () => {
     if (!isMyTurn || gameState.rollsLeft <= 0 || busy) return;
+    playSound('dice');
     const newDice = gameState.dice.map((val, idx) =>
       gameState.held[idx] && gameState.rollsLeft < 3 ? val : Math.floor(Math.random() * 6) + 1
     );
@@ -158,28 +155,32 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-3 py-6">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="max-w-5xl mx-auto px-3 py-4">
+      <GameKitStyles />
+      <style>{`
+        .yb-felt { background: radial-gradient(70% 60% at 50% 45%, #2f9a72 0%, #1d7457 45%, #12503d 100%);
+          box-shadow: inset 0 0 0 2px rgba(255,214,140,0.3), inset 0 10px 30px rgba(0,0,0,0.45), 0 0 0 8px #7c4520, 0 18px 40px rgba(0,0,0,0.5); }
+        .yb-die { position: relative; width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; cursor: pointer;
+          background: linear-gradient(145deg, #ffffff 0%, #f1ece0 55%, #d9cfb8 100%);
+          box-shadow: inset -3px -4px 6px rgba(0,0,0,0.18), inset 3px 3px 5px rgba(255,255,255,0.9), 0 6px 0 #b9ab8b, 0 10px 16px rgba(0,0,0,0.45);
+          transition: transform .15s; }
+        .yb-die:not(:disabled):hover { transform: translateY(-3px) rotate(-3deg); }
+        .yb-die:disabled { cursor: default; }
+        .yb-die-held { transform: translateY(4px); box-shadow: 0 0 0 3px #ffc83d, 0 0 16px rgba(255,200,61,0.6), inset -3px -4px 6px rgba(0,0,0,0.18), 0 2px 0 #b9ab8b; }
+        .yb-pip { width: 100%; aspect-ratio: 1; border-radius: 999px; background: radial-gradient(circle at 35% 35%, #4b4b4b, #111); }
+        .yb-pip-red { background: radial-gradient(circle at 35% 35%, #ff6b6b, #b91c1c); }
+        .yb-row:nth-child(odd) { background: rgba(255,255,255,0.045); }
+        .yb-row:hover { background: rgba(255,200,61,0.08); }
+      `}</style>
+      <div className="gz-panel rounded-3xl p-3 sm:p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {allPlayers.map((p) => {
+          {allPlayers.map((p, i) => {
             const total = getGrandTotal(gameState.sheets[p.player_id] || createEmptySheet());
-            const active = p.player_id === gameState.currentTurnPlayerId;
             return (
-              <button
-                key={p.player_id}
-                onClick={() => setSelectedViewPlayer(p.player_id)}
-                className={`px-4 py-2 rounded-xl border text-left transition cursor-pointer ${
-                  selectedViewPlayer === p.player_id
-                    ? 'bg-amber-500/20 border-amber-500 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm">{p.nickname}</span>
-                  {active && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
-                </div>
-                <div className="text-xs text-amber-400 font-mono">{total} pikë</div>
-              </button>
+              <PlayerChip key={p.player_id} name={p.nickname} me={p.player_id === currentPlayerId} bot={p.player_id.startsWith('BOT')}
+                color={SEAT_COLORS[i % SEAT_COLORS.length]} active={p.player_id === gameState.currentTurnPlayerId && !gameState.winnerId}
+                selected={selectedViewPlayer === p.player_id} onClick={() => setSelectedViewPlayer(p.player_id)}
+                sub={<span className="text-gold font-display">{total} pikë</span>} />
             );
           })}
         </div>
@@ -198,7 +199,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="yb-felt rounded-[28px] p-4 sm:p-5 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap justify-center gap-3">
           {gameState.dice.map((val, idx) => {
             const locked = gameState.held[idx] && gameState.rollsLeft < 3;
@@ -207,14 +208,11 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
                 key={idx}
                 onClick={() => toggleHoldDie(idx)}
                 disabled={!isMyTurn || gameState.rollsLeft === 3 || gameState.rollsLeft === 0}
-                className={`relative w-14 h-14 rounded-2xl font-black text-2xl flex items-center justify-center border-2 transition cursor-pointer ${
-                  locked
-                    ? 'bg-amber-500 text-slate-950 border-amber-300 scale-95'
-                    : 'bg-slate-950 text-white border-slate-700 hover:border-amber-500/60'
-                }`}
+                className={`yb-die ${locked ? 'yb-die-held' : ''}`}
+                aria-label={`Zari ${idx + 1}: ${val}${locked ? ' (i mbajtur)' : ''}`}
               >
                 <DiceFace value={val} locked={locked} />
-                {locked && <Lock className="w-3.5 h-3.5 absolute top-1 right-1" />}
+                {locked && <Lock className="w-3.5 h-3.5 absolute -top-1.5 -right-1.5 bg-gold text-[#2a1600] rounded-full p-0.5" />}
               </button>
             );
           })}
@@ -230,7 +228,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
           <button
             onClick={handleRollDice}
             disabled={!isMyTurn || gameState.rollsLeft <= 0 || busy}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold px-6 py-3.5 rounded-xl transition cursor-pointer"
+            className="gz-btn flex items-center gap-2 font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer"
           >
             <Dices className="w-5 h-5" />
             Hidh Zarat ({gameState.rollsLeft})
@@ -238,9 +236,9 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
+      <div className="gz-panel rounded-3xl overflow-x-auto">
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-950 text-slate-300 border-b border-slate-800">
+          <thead className="bg-black/30 text-mute border-b border-white/10 text-xs uppercase tracking-wider">
             <tr>
               <th className="py-3 px-4">Kombinimi</th>
               {COLUMNS.map((c) => (
@@ -248,9 +246,9 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/70">
+          <tbody>
             {ROWS_ORDER.map((row) => (
-              <tr key={row} className="hover:bg-slate-800/30">
+              <tr key={row} className="yb-row">
                 <td className="py-2.5 px-4 font-medium text-slate-200">{ROW_LABELS[row]}</td>
                 {COLUMNS.map((col) => {
                   const val = viewedSheet[col.key]?.[row];
@@ -264,7 +262,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
                   return (
                     <td key={col.key} className="py-1.5 px-2 text-center">
                       {val !== undefined ? (
-                        <span className="inline-block w-14 py-1 rounded-lg bg-slate-950 font-bold text-amber-300">
+                        <span className="inline-block w-14 py-1 rounded-lg bg-black/30 font-display font-semibold text-gold">
                           {val}
                         </span>
                       ) : playable ? (
@@ -289,7 +287,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-slate-950 font-bold text-amber-400 border-t border-slate-800">
+          <tfoot className="bg-black/35 font-display font-semibold text-gold border-t border-white/10">
             <tr>
               <td className="py-3 px-4">Totali i Kolonës</td>
               {COLUMNS.map((col) => (

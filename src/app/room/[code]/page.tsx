@@ -294,7 +294,10 @@ export default function RoomLobbyPage() {
   const realPlayerCount = players.filter((p) => !BOT_IDS.includes(p.player_id)).length;
   const hostNick = players.find((p) => p.player_id === room?.host_id)?.nickname || 'Lojtar';
   const lobbyEntry = amHost && room && isJoinable(room.status, room.game_state, room.game_type, realPlayerCount)
-    ? JSON.stringify({ code: room.code, game_type: room.game_type, hostName: hostNick, playerCount: realPlayerCount })
+    ? JSON.stringify({
+        code: room.code, game_type: room.game_type, hostName: hostNick, playerCount: realPlayerCount,
+        status: room.status === 'waiting' ? 'waiting' : hasBot(room.game_state) ? 'bot' : 'seats',
+      })
     : '';
   const lobbyChannelRef = useRef<RealtimeChannel | null>(null);
   const [lobbyReady, setLobbyReady] = useState(false);
@@ -475,6 +478,31 @@ export default function RoomLobbyPage() {
     );
   }
 
+  // Shiriti i përbashkët i lojërave: Dil · loja, dhoma dhe lojtarët · zëri
+  const gameBar = (
+    <div className="w-full max-w-5xl mx-auto px-3 pt-3 pb-2 flex items-center justify-between gap-2 shrink-0">
+      <button
+        onClick={handleLeaveRoom}
+        className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-mute hover:text-ink text-sm font-bold pl-2.5 pr-3.5 py-1.5 rounded-full transition cursor-pointer shrink-0"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Dil
+      </button>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="flex items-center gap-2 min-w-0 bg-white/5 border border-white/10 pl-1 pr-3 py-1 rounded-full" title="Informacioni i dhomës">
+          <GameArt game={room.game_type} className="w-7 h-7 rounded-full shrink-0" />
+          <span className="text-xs font-bold truncate hidden sm:inline">{GAME_NAMES[room.game_type] || room.game_type}</span>
+          <span className="text-xs font-bold text-mute whitespace-nowrap">
+            <strong className="font-display text-gold tracking-widest">{room.code}</strong>
+            <span className="mx-1.5 opacity-50">·</span>
+            <Users className="inline w-3.5 h-3.5 -mt-0.5" /> {players.length}
+          </span>
+        </span>
+        <SoundToggle />
+      </div>
+    </div>
+  );
+
   // 1. Rummy / Remi 51 (JOL)
   if (room.status === 'playing' && room.game_type === 'rummy' && room.game_state) {
     return (
@@ -503,21 +531,7 @@ export default function RoomLobbyPage() {
       <div className="relative h-dvh flex flex-col overflow-hidden">
         {InactivityWarningBanner}
         {BotBanner}
-        <div className="w-full max-w-3xl mx-auto px-3 pt-3 flex items-center justify-between shrink-0">
-          <button
-            onClick={handleLeaveRoom}
-            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-mute hover:text-ink text-sm font-bold pl-2.5 pr-3.5 py-1.5 rounded-full transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dil
-          </button>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-mute bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
-              Dhoma <strong className="font-display text-gold tracking-widest">{room.code}</strong>
-            </span>
-            <SoundToggle />
-          </div>
-        </div>
+        {gameBar}
         <div className="flex-1 min-h-0">
           <LudoGame
             gameState={room.game_state as LudoGameState}
@@ -537,24 +551,10 @@ export default function RoomLobbyPage() {
   // 3. Yamb (Jamb)
   if (room.status === 'playing' && room.game_type === 'yamb') {
     return (
-      <div className="relative min-h-screen bg-slate-950 text-white">
+      <div className="relative min-h-screen text-white">
         {InactivityWarningBanner}
         {BotBanner}
-        <div className="max-w-5xl mx-auto px-3 pt-4 flex items-center justify-between">
-          <button
-            onClick={handleLeaveRoom}
-            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dil nga loja
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">
-              Dhoma: <strong className="text-amber-400">{room.code}</strong>
-            </span>
-            <SoundToggle />
-          </div>
-        </div>
+        {gameBar}
         <YambGame
           roomCode={room.code}
           gameState={room.game_state}
@@ -568,24 +568,10 @@ export default function RoomLobbyPage() {
   // 4. Pishpirik
   if (room.status === 'playing' && room.game_type === 'pishpirik' && room.game_state) {
     return (
-      <div className="relative min-h-screen bg-slate-950 text-white pb-10">
+      <div className="relative min-h-screen text-white pb-6">
         {InactivityWarningBanner}
         {BotBanner}
-        <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
-          <button
-            onClick={handleLeaveRoom}
-            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dil nga loja
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">
-              Dhoma: <strong className="text-amber-400">{room.code}</strong>
-            </span>
-            <SoundToggle />
-          </div>
-        </div>
+        {gameBar}
         <div className="px-3">
           <PishpirikGame
             gameState={room.game_state as PishpirikGameState}
@@ -605,24 +591,10 @@ export default function RoomLobbyPage() {
   // 5. Shah (Chess)
   if (room.status === 'playing' && room.game_type === 'shah' && room.game_state) {
     return (
-      <div className="relative min-h-screen bg-slate-950 text-white pb-10">
+      <div className="relative min-h-screen text-white pb-6">
         {InactivityWarningBanner}
         {BotBanner}
-        <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
-          <button
-            onClick={handleLeaveRoom}
-            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dil nga loja
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">
-              Dhoma: <strong className="text-amber-400">{room.code}</strong>
-            </span>
-            <SoundToggle />
-          </div>
-        </div>
+        {gameBar}
         <div className="px-3">
           <ChessGame
             gameState={room.game_state as ChessGameState}
@@ -642,24 +614,10 @@ export default function RoomLobbyPage() {
   // 6. UNO Shqip
   if (room.status === 'playing' && room.game_type === 'uno' && room.game_state) {
     return (
-      <div className="relative min-h-screen bg-slate-950 text-white pb-10">
+      <div className="relative min-h-screen text-white pb-6">
         {InactivityWarningBanner}
         {BotBanner}
-        <div className="max-w-5xl mx-auto px-3 pt-4 mb-4 flex items-center justify-between">
-          <button
-            onClick={handleLeaveRoom}
-            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dil nga loja
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">
-              Dhoma: <strong className="text-amber-400">{room.code}</strong>
-            </span>
-            <SoundToggle />
-          </div>
-        </div>
+        {gameBar}
         <div className="px-3">
           <UnoGame
             gameState={room.game_state as UnoGameState}

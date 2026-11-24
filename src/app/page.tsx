@@ -4,7 +4,7 @@ import GameArt, { GAME_THEME } from '../components/GameArt';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
-import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom } from '../lib/lobby';
+import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom, MAX_SEATS } from '../lib/lobby';
 import { useAccount, bonusAvailable } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
 import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight } from 'lucide-react';
@@ -188,15 +188,34 @@ export default function HomePage() {
             {openRooms.map((rm) => {
               const t = GAME_THEME[rm.game_type] ?? GAME_THEME.ludo;
               return (
-                <div key={rm.code} className="gz-panel snap-start shrink-0 w-64 rounded-3xl p-3 flex items-center gap-3">
-                  <GameArt game={rm.game_type} className="w-14 h-14 rounded-2xl shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-display font-semibold truncate" style={{ color: t.from }}>{gameTitle(rm.game_type)}</div>
-                    <div className="text-xs text-mute truncate"><strong className="text-ink">{rm.hostName}</strong> · {rm.playerCount} lojtarë</div>
+                <div key={rm.code} className="gz-room gz-panel snap-start shrink-0 w-72 rounded-3xl p-3" style={{ ['--glow' as string]: t.glow }}>
+                  <div className="flex items-center gap-3">
+                    <GameArt game={rm.game_type} className="w-14 h-14 rounded-2xl shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display font-semibold text-lg leading-tight truncate" style={{ color: t.from }}>{gameTitle(rm.game_type)}</div>
+                      <span className={`gz-status gz-status-${rm.status}`}>
+                        <span className="gz-status-dot" />
+                        {rm.status === 'bot' ? 'Duke luajtur me Bot' : rm.status === 'seats' ? 'Vende të lira' : 'Në pritje të lojtarit'}
+                      </span>
+                    </div>
                   </div>
-                  <button onClick={() => joinRoomByCode(rm.code)} aria-label={`Bashkohu në dhomën ${rm.code}`} className="grid place-items-center w-10 h-10 shrink-0 rounded-full bg-mint text-night hover:brightness-110 transition cursor-pointer">
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="grid place-items-center w-8 h-8 shrink-0 rounded-full font-display font-bold text-xs text-white" style={{ background: `linear-gradient(135deg, ${t.from}, ${t.to})` }}>
+                      {rm.hostName.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold truncate">{rm.hostName}</div>
+                      <div className="flex items-center gap-1" aria-label={`${rm.playerCount} lojtarë`}>
+                        {Array.from({ length: MAX_SEATS[rm.game_type] ?? 4 }).map((_, i) => (
+                          <span key={i} className={`w-2 h-2 rounded-full ${i < rm.playerCount ? 'bg-mint' : 'bg-white/15'}`} />
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={() => joinRoomByCode(rm.code)} aria-label={`Bashkohu në dhomën ${rm.code}`}
+                      className="flex items-center gap-1 shrink-0 rounded-full bg-mint text-night font-display font-semibold text-sm pl-3.5 pr-3 py-2 hover:brightness-110 transition cursor-pointer">
+                      Luaj <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}

@@ -3,6 +3,7 @@ import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { BOT_ID, ChessGameState, ChessPiece, epSquareOf, getLegalMoves, makeChessMove } from '@/lib/chessLogic';
 import { requestBotMove } from '@/lib/chessBot';
 import { playSound } from '@/lib/sound';
+import { PlayerChip, GameKitStyles } from './gamekit';
 import { recordWin } from '@/lib/supabase';
 import { Trophy, RotateCcw, Crown, ShieldAlert, Undo2, History, Sparkles } from 'lucide-react';
 function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
@@ -119,16 +120,16 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          {[{ id: gameState.whiteId, name: gameState.whiteName, color: 'w' as const, cap: gameState.capturedByWhite }, { id: gameState.blackId, name: gameState.blackName, color: 'b' as const, cap: gameState.capturedByBlack }].map((pl) => {
-            const active = gameState.status === 'playing' && gameState.turn === pl.color;
-            return (
-              <div key={pl.color} className={`px-3 py-2 rounded-2xl border flex items-center justify-between transition ${active ? 'bg-[#2d1e14] border-amber-400 ring-2 ring-amber-400/40 shadow-lg' : 'bg-[#1a110b]/80 border-amber-900/40 opacity-75'}`}>
-                <div className="flex items-center gap-2 truncate"><span className={`w-4 h-4 rounded-full border ${pl.color === 'w' ? 'bg-[#faf3e3] border-amber-500' : 'bg-stone-950 border-amber-400'}`} /><span className="text-xs sm:text-sm font-extrabold text-amber-50 truncate">{pl.name}</span></div>
-                <div className="flex items-center -space-x-1.5">{pl.cap.slice(-6).map((cp, i) => (<div key={i} className="w-4 h-5"><ChessPiece3D piece={cp} /></div>))}</div>
-              </div>
-            );
-          })}
+        <div className="flex flex-wrap justify-center gap-2">
+          <GameKitStyles />
+          {[{ id: gameState.whiteId, name: gameState.whiteName, color: 'w' as const, cap: gameState.capturedByWhite }, { id: gameState.blackId, name: gameState.blackName, color: 'b' as const, cap: gameState.capturedByBlack }].map((pl) => (
+            <PlayerChip key={pl.color} name={pl.name.replace('🤖 ', '')} me={pl.id === currentPlayerId} bot={pl.id === BOT_ID}
+              color={pl.color === 'w' ? '#e9d8b4' : '#6b4226'}
+              active={gameState.status === 'playing' && gameState.turn === pl.color}
+              sub={pl.cap.length ? (
+                <span className="flex items-center -space-x-1">{pl.cap.slice(-7).map((cp, i) => (<span key={i} className="w-3.5 h-4 inline-block"><ChessPiece3D piece={cp} /></span>))}</span>
+              ) : (pl.color === 'w' ? 'Të bardhat' : 'Të zezat')} />
+          ))}
         </div>
 
         <div className="py-2 sm:py-4 flex items-center justify-center" style={{ perspective: view3D ? '1100px' : 'none' }}>

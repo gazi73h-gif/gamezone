@@ -11,11 +11,14 @@ export const MAX_SEATS: Record<string, number> = {
   yamb: 4, pishpirik: 4, shah: 2, uno: 6, ludo: 4, rummy: 4,
 };
 
+export type LobbyStatus = 'waiting' | 'bot' | 'seats';
+
 export interface LobbyRoom {
   code: string;
   game_type: string;
   hostName: string;
   playerCount: number;
+  status: LobbyStatus; // në pritje / duke luajtur me bot / lojë me vende të lira
 }
 
 export function hasBot(gameState: unknown): boolean {
@@ -44,6 +47,7 @@ export function lobbyRoomsFrom(state: Record<string, unknown[]>): LobbyRoom[] {
         game_type: m.game_type,
         hostName: m.hostName || 'Lojtar',
         playerCount: m.playerCount || 1,
+        status: m.status === 'bot' || m.status === 'seats' ? m.status : 'waiting',
       });
     }
   });
