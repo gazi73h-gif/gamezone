@@ -14,6 +14,7 @@ export default function AccountMenu({ account }: { account: Account }) {
   const [busy, setBusy] = useState(false);
 
   if (!account.ready) return null;
+  const showLinkError = !!account.linkError && !open;
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +30,15 @@ export default function AccountMenu({ account }: { account: Account }) {
 
   return (
     <>
+      {showLinkError && (
+        <div role="alert" className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,420px)] gz-panel rounded-2xl p-4 border-2 !border-coral/60">
+          <p className="text-sm font-bold">{account.linkError}</p>
+          <div className="flex gap-2 mt-3">
+            <button onClick={() => { account.clearLinkError(); setSent(''); setOpen(true); }} className="gz-btn flex-1 py-2 rounded-xl font-display font-semibold cursor-pointer">Kërko link të ri</button>
+            <button onClick={account.clearLinkError} className="px-4 py-2 rounded-xl bg-white/10 font-bold cursor-pointer">Mbyll</button>
+          </div>
+        </div>
+      )}
       {account.user ? (
         <button onClick={() => setOpen(true)} aria-label="Llogaria ime"
           className="flex items-center gap-1.5 bg-night-2/80 border border-white/15 hover:border-white/30 pl-1 pr-3 py-1 rounded-full cursor-pointer transition">
@@ -73,6 +83,9 @@ export default function AccountMenu({ account }: { account: Account }) {
                 <h2 className="font-display font-bold text-2xl mt-2">Kontrollo emailin</h2>
                 <p className="text-sm text-mute mt-2">
                   Të dërguam një link te <strong className="text-ink break-all">{sent}</strong>. Hape nga ky telefon ose kompjuter dhe do të kyçesh menjëherë.
+                </p>
+                <p className="text-xs text-mute mt-3 bg-white/5 rounded-xl p-3">
+                  📱 Në telefon: nëse linku hapet brenda aplikacionit të emailit, zgjidh <strong className="text-ink">⋮ → Hape në Chrome/Safari</strong>, që të kyçesh në shfletuesin ku luan.
                 </p>
                 <button onClick={() => { setSent(''); setEmail(''); }} className="mt-5 text-sm font-bold text-mute underline cursor-pointer">Përdor një email tjetër</button>
               </>

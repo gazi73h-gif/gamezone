@@ -39,11 +39,21 @@ export function useAccount() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [serverReady, setServerReady] = useState<boolean | null>(null);
   const [ready, setReady] = useState(false);
+  const [linkError, setLinkError] = useState('');
 
   useEffect(() => {
     let alive = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
+      // linku nga emaili ka dështuar (skaduar, përdorur, ose i gabuar): Supabase e tregon në "#error=..."
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const err = hash.get('error_code') || hash.get('error');
+      if (err && !data.session) {
+        setLinkError(err === 'otp_expired'
+          ? 'Linku i kyçjes ka skaduar ose është përdorur njëherë. Kërko një link të ri.'
+          : 'Kyçja nuk u krye. Kërko një link të ri dhe hape në të njëjtin shfletues ku luan.');
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
       setUser(data.session?.user ?? null);
       setReady(true);
     });
@@ -97,5 +107,6 @@ export function useAccount() {
     if (!error && data) setProfile(data as Profile);
   }, []);
 
-  return { ready, user, profile, serverReady, signIn, signOut, claimBonus, saveNickname };
+  const clearLinkError = useCallback(() => setLinkError(''), []);
+  return { ready, user, profile, serverReady, signIn, signOut, claimBonus, saveNickname, linkError, clearLinkError };
 }
