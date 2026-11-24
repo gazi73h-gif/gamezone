@@ -5,6 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom } from '../lib/lobby';
+import { useAccount, bonusAvailable } from '../lib/account';
+import AccountMenu from '../components/AccountMenu';
 import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight } from 'lucide-react';
 
 interface GameInfo { id: string; title: string; subtitle: string; players: string; badge?: string; }
@@ -24,6 +26,15 @@ export default function HomePage() {
   const router = useRouter();
   const [nickname, setNickname] = useState<string>('');
   const [playerId, setPlayerId] = useState<string>('');
+  const account = useAccount();
+  // me llogari: ID e llogarisë dhe tokens nga serveri; pa llogari: si mysafir në këtë shfletues
+  const myId = account.user?.id ?? playerId;
+  const online = !!account.user && account.serverReady === true && !!account.profile;
+  const [profileNick, setProfileNick] = useState('');
+  if (account.profile && account.profile.nickname !== profileNick) {
+    setProfileNick(account.profile.nickname);
+    setNickname(account.profile.nickname);
+  }
   const [tokens, setTokens] = useState<number>(1000);
   const [canClaimDaily, setCanClaimDaily] = useState<boolean>(false);
   const [joinCode, setJoinCode] = useState<string>('');
@@ -72,8 +83,8 @@ export default function HomePage() {
     setErrorMsg(''); setLoading(true);
     try {
       const code = Math.floor(1000 + Math.random() * 9000).toString();
-      const { error: re } = await supabase.from('rooms').insert([{ code, game_type: gameId, host_id: playerId, status: 'waiting' }]); if (re) throw re;
-      const { error: pe } = await supabase.from('room_players').insert([{ room_code: code, player_id: playerId, nickname: nickname.trim(), seat_order: 1 }]); if (pe) throw pe;
+      const { error: re } = await supabase.from('rooms').insert([{ code, game_type: gameId, host_id: myId, status: 'waiting' }]); if (re) throw re;
+      const { error: pe } = await supabase.from('room_players').insert([{ room_code: code, player_id: myId, nickname: nickname.trim(), seat_order: 1 }]); if (pe) throw pe;
       router.push(`/room/${code}`);
     } catch { setErrorMsg('Gabim gjatë krijimit të dhomës. Kontrolloni lidhjen me Supabase.'); } finally { setLoading(false); }
   };
@@ -86,7 +97,7 @@ export default function HomePage() {
       const { data: room, error: fe } = await supabase.from('rooms').select('*').eq('code', targetCode).single();
       if (fe || !room) { setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.'); setLoading(false); return; }
       const { data: players } = await supabase.from('room_players').select('*').eq('room_code', targetCode);
-      const { error: je } = await supabase.from('room_players').upsert({ room_code: targetCode, player_id: playerId, nickname: nickname.trim(), seat_order: (players?.length || 0) + 1 }, { onConflict: 'room_code,player_id' }); if (je) throw je;
+      const { error: je } = await supabase.from('room_players').upsert({ room_code: targetCode, player_id: myId, nickname: nickname.trim(), seat_order: (players?.length || 0) + 1 }, { onConflict: 'room_code,player_id' }); if (je) throw je;
       router.push(`/room/${targetCode}`);
     } catch { setErrorMsg('Gabim gjatë hyrjes në dhomë.'); } finally { setLoading(false); }
   };
@@ -107,15 +118,16 @@ export default function HomePage() {
           </span>
         </span>
         <div className="flex items-center gap-2">
-          {canClaimDaily && (
-            <button onClick={claimDailyBonus} className="flex items-center gap-1.5 bg-mint/15 hover:bg-mint/25 text-mint border border-mint/40 text-xs sm:text-sm font-extrabold px-3 py-2 rounded-full transition cursor-pointer">
+          {(online ? bonusAvailable(account.profile) : canClaimDaily) && (
+            <button aria-label="Merr bonusin ditor +250 tokens" onClick={online ? () => void account.claimBonus() : claimDailyBonus} className="flex items-center gap-1.5 bg-mint/15 hover:bg-mint/25 text-mint border border-mint/40 text-xs sm:text-sm font-extrabold px-3 py-2 rounded-full transition cursor-pointer">
               <Gift className="w-4 h-4" /> <span className="hidden sm:inline">Bonusi ditor</span> +250
             </button>
           )}
-          <div className="flex items-center gap-1.5 bg-night-2/80 border border-gold/30 pl-1.5 pr-3.5 py-1.5 rounded-full" title="Tokens">
+          <div className="flex items-center gap-1.5 bg-night-2/80 border border-gold/30 pl-1.5 pr-3.5 py-1.5 rounded-full" title={online ? 'Tokens (të ruajtura në server)' : 'Tokens (vetëm në këtë pajisje)'}>
             <span className="grid place-items-center w-6 h-6 rounded-full bg-gold/20"><Coins className="w-4 h-4 text-gold" /></span>
-            <span className="font-display font-semibold text-gold">{tokens.toLocaleString()}</span>
+            <span className="font-display font-semibold text-gold">{(online ? account.profile!.tokens : tokens).toLocaleString()}</span>
           </div>
+          <AccountMenu account={account} />
         </div>
       </header>
 
@@ -145,7 +157,7 @@ export default function HomePage() {
             <span className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg">
               {(nickname.trim() || '?').slice(0, 2).toUpperCase()}
             </span>
-            <input id="nick" type="text" value={nickname} onChange={(e) => handleSaveNickname(e.target.value)} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
+            <input id="nick" type="text" value={nickname} onChange={(e) => handleSaveNickname(e.target.value)} onBlur={() => { if (online && nickname.trim() && nickname !== account.profile?.nickname) void account.saveNickname(nickname); }} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
               className="gz-input w-full min-w-0 rounded-2xl px-4 py-3 text-ink placeholder:text-mute/60 font-semibold" />
           </div>
 
