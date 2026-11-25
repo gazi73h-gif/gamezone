@@ -247,7 +247,7 @@ export default function LudoGame({
     if (!rolling) return;
     playSound('dice');
     const rattle = setInterval(() => playSound('dice'), 900);
-    const stop = setTimeout(() => { setRolling(false); setLanded(landedInfo()); playSound('hop'); }, ROLL_MS);
+    const stop = setTimeout(() => { setRolling(false); setLanded(landedInfo()); playSound('diceLand'); }, ROLL_MS);
     return () => { clearInterval(rattle); clearTimeout(stop); };
   }, [rolling, seenRoll]);
   useEffect(() => {
@@ -264,11 +264,21 @@ export default function LudoGame({
   useEffect(() => {
     if (!moving || rolling) return;
     const t = setTimeout(() => {
-      setShown(nextHop(shown, positionsOf(gameState)));
-      playSound('hop');
+      const target = positionsOf(gameState);
+      const next = nextHop(shown, target);
+      setShown(next);
+      // a u rrëzua ndonjë figurë (nga fusha kthehet në bazë)?
+      const victims = next === target
+        ? Object.keys(target).filter((pid) => target[pid].some((pos, i) => pos === -1 && (shown[pid]?.[i] ?? -1) >= 0))
+        : [];
+      const reset = victims.length && Object.keys(target).every((pid) => target[pid].every((pos) => pos === -1));
+      if (!victims.length || reset) playSound('hop');
+      else if (victims.includes(currentPlayerId)) playSound('ouch');
+      else if (gameState.rolledBy === currentPlayerId) playSound('yes');
+      else playSound('knock');
     }, HOP_MS);
     return () => clearTimeout(t);
-  }, [moving, rolling, shown, gameState]);
+  }, [moving, rolling, shown, gameState, currentPlayerId]);
 
   /* ruaje menjëherë, animacioni vjen pas */
   const commit = async (next: LudoGameState) => {

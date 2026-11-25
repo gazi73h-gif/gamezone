@@ -224,7 +224,7 @@ export function isSevenPairs(tiles: RummyTile[]): boolean {
 // A mbyllet loja nëse hidhet ky gur? Kthen mënyrën e mbylljes ose null
 export function finishWith(hand: RummyTile[], tileId: string): FinishHow | null {
   const tile = hand.find((t) => t.id === tileId);
-  if (!tile || hand.length !== HAND_SIZE + 1) return null;
+  if (!tile || tile.isJoker || hand.length !== HAND_SIZE + 1) return null; // Okey-u s'hidhet kurrë
   const rest = hand.filter((t) => t.id !== tileId);
   const okey = !!tile.isJoker;
   if (solveMelds(rest)) return okey ? 'okey' : 'normal';
@@ -444,7 +444,7 @@ export function discardRummyTile(state: RummyGameState, playerId: string, tileId
   if (state.status !== 'playing' || state.currentTurn !== playerId || !state.hasDrawn) return state;
   const p = state.players[playerId];
   const tile = p?.hand.find((t) => t.id === tileId);
-  if (!p || !tile) return state;
+  if (!p || !tile || tile.isJoker) return state; // Okey-u (Jokeri) nuk mund të hidhet në tavolinë
   const next = nextSeat(state, playerId);
   return {
     ...state,
@@ -483,7 +483,7 @@ function pickDiscard(hand: RummyTile[]): RummyTile {
   const counts = new Map<string, number>();
   hand.forEach((t) => counts.set(`${t.color}${t.number}`, (counts.get(`${t.color}${t.number}`) ?? 0) + 1));
   const pool = hand.filter((t) => !t.isJoker && !useful.has(t.id));
-  const from = pool.length ? pool : hand.filter((t) => !t.isJoker).length ? hand.filter((t) => !t.isJoker) : hand;
+  const from = pool.length ? pool : hand.filter((t) => !t.isJoker);
   // ruaj çiftet dhe gurët afër njëri-tjetrit; hidh gurin më të vetmuar
   const lonely = (t: RummyTile) => (counts.get(`${t.color}${t.number}`) ?? 0) * 3 +
     hand.filter((x) => x.id !== t.id && x.color === t.color && Math.abs(x.number - t.number) <= 2).length;

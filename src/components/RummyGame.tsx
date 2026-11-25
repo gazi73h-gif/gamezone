@@ -27,6 +27,8 @@ interface RummyGameProps {
 const TURN_MS = 30000; // 30 sekonda për radhë
 const HOST_GRACE_MS = 3000; // hosti e kryen vetëm nëse lojtari s'e ka bërë vetë
 const BOT_MS = 1100;
+const BOT_FALLBACK_MS = 20000; // nëse hosti mungon, një lojtar tjetër e luan botin pas 20 s
+const HUMAN_FALLBACK_MS = TURN_MS + 15000; // ... dhe lojtarin që ka ikur pa shtypur "Dil"
 const NEXT_ROUND_MS = 9000;
 const ROW = 13;
 const RACK_SLOTS = ROW * 2;
@@ -251,8 +253,8 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const finishOpts = useMemo(() => (canAct && hand.length === 15 ? finishOptions(hand) : []), [canAct, hand]);
 
   /* ruajtja: menjëherë, vetëm nëse askush s'e ka ndryshuar lojën ndërkohë */
-  const commit = async (next: RummyGameState) => {
-    if (next === gameState) return;
+  const commit = async (next: RummyGameState): Promise<boolean> => {
+    if (next === gameState) return false;
     const saved = { ...next, rev: gameState.rev + 1 };
     setGameState(saved);
     setSaving(true);
@@ -260,7 +262,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
       try {
         await onUpdateState(saved);
         setSaving(false);
-        return;
+        return true;
       } catch (err) {
         if (err instanceof StaleStateError) break;
         if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * attempt));
@@ -269,6 +271,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     }
     setGameState(serverRef.current);
     setSaving(false);
+    return false;
   };
 
   const fail = (msg?: string) => { if (msg) setToast(msg); };
@@ -301,6 +304,15 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const tick = useEffectEvent(() => {
     const left = deadlineRef.current - Date.now();
     setMsLeft(Math.max(0, left));
+    const elapsed = TURN_MS - left;
+    if (s.status === 'playing' && !saving && !isHost && me && firedRef.current !== turnKey + s.rev) {
+      const bot = isRummyBot(s.currentTurn);
+      if ((bot && elapsed >= BOT_FALLBACK_MS) || (!bot && s.currentTurn !== currentPlayerId && elapsed >= HUMAN_FALLBACK_MS)) {
+        firedRef.current = turnKey + s.rev;
+        void commit(bot ? runBotRummyTurn(s) : autoPlayTurn(s));
+        return;
+      }
+    }
     if (s.status !== 'playing' || saving || isRummyBot(s.currentTurn) || firedRef.current === turnKey) return;
     const mine = s.currentTurn === currentPlayerId;
     if ((mine && left <= 0) || (isHost && !mine && left <= -HOST_GRACE_MS)) {
@@ -316,13 +328,18 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const progress = msLeft / TURN_MS;
 
   /* botët (i drejton hosti) */
+  const [botTry, setBotTry] = useState(0);
   const botKey = isHost && !saving && s.status === 'playing' && isRummyBot(s.currentTurn) ? turnKey + s.rev : '';
-  const playBot = useEffectEvent(() => { void commit(runBotRummyTurn(s)); });
+  const playBot = useEffectEvent(() => {
+    let next = runBotRummyTurn(s);
+    if (next === s) next = autoPlayTurn(s); // boti s'gjeti lëvizje: luaj si me kohë të mbaruar
+    void commit(next).finally(() => setBotTry((n) => n + 1));
+  });
   useEffect(() => {
     if (!botKey) return;
     const t = setTimeout(() => playBot(), BOT_MS);
     return () => clearTimeout(t);
-  }, [botKey]);
+  }, [botKey, botTry]);
 
   /* raundi tjetër */
   const nextRound = useEffectEvent(() => { void commit(startNextRound(s)); });
@@ -360,12 +377,14 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
 
   const discard = (id: string) => {
     if (!canAct) return fail(myTurn ? 'Merr një gur fillimisht!' : 'Nuk është radha jote.');
+    if (byId.get(id)?.isJoker) return fail('Okey-u (Jokeri) nuk mund të hidhet — mbaje për kombinimet.');
     setSelected([]);
     void commit(discardRummyTile(s, currentPlayerId, id));
   };
 
   const finish = (id?: string) => {
     if (!canAct) return fail(myTurn ? 'Merr një gur fillimisht!' : 'Nuk është radha jote.');
+    if (id && byId.get(id)?.isJoker) return fail('Okey-u (Jokeri) nuk mund të hidhet — mbaje për kombinimet.');
     const tileId = id ?? (chosen.length === 1 && finishOpts.some((o) => o.tileId === chosen[0]) ? chosen[0] : finishOpts[0]?.tileId);
     if (!tileId) return fail('Për ta mbyllur, 14 gurët e tjerë duhet të jenë të gjithë në kombinime ose 7 çifte.');
     const r = finishRummyRound(s, currentPlayerId, tileId);
@@ -550,7 +569,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
                 <Sparkles className="w-3.5 h-3.5" /> Mbyll ({WIN_POINTS})
               </button>
             )}
-            {canAct && chosen.length === 1 && (
+            {canAct && chosen.length === 1 && !byId.get(chosen[0])?.isJoker && (
               <button onClick={() => discard(chosen[0])} className="rk-btn rk-btn-red">Hidh gurin</button>
             )}
             <button onClick={() => { setSelected([]); setRack({ key: rackKey, slots: arrangeMelds(hand) }); }} className="rk-btn">
