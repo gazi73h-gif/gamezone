@@ -6,11 +6,11 @@ import {
   normalizeLudoState, LAST_MAIN, FINISH, isLudoBot, ludoStandings,
 } from '@/lib/ludoLogic';
 import { StaleStateError } from '@/lib/roomSync';
-import { playSound, startMusic, stopMusic, isMusicOff, setMusicOff, onMusicChange } from '@/lib/sound';
+import { playSound } from '@/lib/sound';
 import Fireworks from '@/components/Fireworks';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
-import { RotateCcw, Trophy, Music } from 'lucide-react';
+import { RotateCcw, Trophy } from 'lucide-react';
 
 interface LudoGameProps {
   gameState: LudoGameState;
@@ -344,19 +344,6 @@ export default function LudoGame({
 
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
 
-  /* muzika e sfondit gjatë lojës */
-  const playing = gameState.status === 'playing';
-  useEffect(() => {
-    if (!playing) return;
-    startMusic();
-    return () => stopMusic();
-  }, [playing]);
-  const [musicOff, setMusicState] = useState(false);
-  useEffect(() => {
-    setMusicState(isMusicOff()); // eslint-disable-line react-hooks/set-state-in-effect -- lexohet nga shfletuesi vetëm pas hapjes
-    return onMusicChange(setMusicState);
-  }, []);
-
   /* "ding" kur të vjen radha */
   const myCall = isMyTurn && !gameState.hasRolled && !busy;
   useEffect(() => { if (myCall) playSound('turn'); }, [myCall]);
@@ -444,7 +431,7 @@ export default function LudoGame({
     <div className="h-full flex flex-col select-none">
 
       {/* radha */}
-      <div className="flex justify-center items-center gap-2 px-3 pt-2 shrink-0">
+      <div className="flex justify-center px-3 pt-2 shrink-0">
         <div
           className="flex items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full font-display font-semibold text-white shadow-lg"
           style={{ background: `linear-gradient(180deg, ${ZONE[curColor].light}, ${ZONE[curColor].dark})` }}
@@ -452,17 +439,6 @@ export default function LudoGame({
           <span className="w-6 h-8 -mt-2"><Pawn color={curColor} /></span>
           {rolling ? `🎲 ${rollerName} po hedh zarin…` : isMyTurn ? (gameState.hasRolled ? 'Zgjidh një gur' : 'Radha jote, hidh zarin!') : `Radha e ${curPlayer?.nickname ?? '...'}`}
         </div>
-        <button
-          type="button"
-          onClick={() => setMusicOff(!musicOff)}
-          aria-label={musicOff ? 'Ndize muzikën' : 'Fike muzikën'}
-          aria-pressed={!musicOff}
-          title={musicOff ? 'Ndize muzikën' : 'Fike muzikën'}
-          className={`relative grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/60 border border-white/15 text-white cursor-pointer transition ${musicOff ? 'opacity-50' : ''}`}
-        >
-          <Music className="w-4 h-4" />
-          {musicOff && <span className="absolute w-5 h-0.5 bg-coral rotate-45 rounded" />}
-        </button>
       </div>
 
       {/* board: sa më i madh që lejon ekrani */}

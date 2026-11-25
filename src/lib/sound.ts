@@ -44,7 +44,6 @@ export const isMuted = () => muted;
 export function setMuted(m: boolean) {
   muted = m;
   try { window.localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* s'ka rëndësi */ }
-  if (m) endMusic(); else if (musicWanted && !musicOff) beginMusic();
   listeners.forEach((fn) => fn(m));
 }
 
@@ -96,19 +95,34 @@ function mallet(c: AudioContext, at: number, freq: number, dur: number, vol: num
 // shkallë pentatonike: çdo hap i figurës ngjitet një notë më lart
 const STEPS = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86];
 
-/* zë i shkurtër (p.sh. "Yesss!") me zërin e shfletuesit */
-function say(text: string, pitch: number) {
-  try {
-    const sp = window.speechSynthesis;
-    if (!sp || typeof SpeechSynthesisUtterance === 'undefined') return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = 0.85;
-    u.pitch = pitch;
-    u.volume = 0.9;
-    sp.cancel();
-    sp.speak(u);
-  } catch { /* s'ka rëndësi */ }
+/* zë "vokal" pa fjalë: valë sharrë përmes dy filtrave të zanores "u" (si një brohoritje) */
+function whoop(c: AudioContext, at: number, pts: [number, number][], vol: number) {
+  const dur = pts[pts.length - 1][0];
+  const o = c.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(pts[0][1], at);
+  pts.slice(1).forEach(([tt, f]) => o.frequency.exponentialRampToValueAtTime(f, at + tt));
+  // dridhje e lehtë si te zëri i njeriut
+  const lfo = c.createOscillator();
+  const depth = c.createGain();
+  lfo.frequency.value = 6.5;
+  depth.gain.value = 9;
+  lfo.connect(depth).connect(o.frequency);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + 0.05);
+  g.gain.setValueAtTime(vol, at + dur * 0.7);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  for (const [f, q, v] of [[380, 4, 1], [950, 7, 0.45], [2400, 9, 0.12]] as const) {
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+    const fg = c.createGain();
+    fg.gain.value = v;
+    o.connect(bp).connect(fg).connect(g);
+  }
+  g.connect(master!);
+  o.start(at); lfo.start(at);
+  o.stop(at + dur + 0.05); lfo.stop(at + dur + 0.05);
 }
 
 /* ── tingujt ── */
@@ -150,19 +164,20 @@ const SOUNDS: Record<SoundName, (c: AudioContext, t: number, n?: number) => void
     [76, 79, 84, 88, 91].forEach((n, i) => mallet(c, t + i * 0.06, midi(n), 0.45, 0.13));
     tone(c, t + 0.3, midi(96), midi(96), 0.5, 0.04);
   },
-  // "Yesss!" — fanfarë e gëzuar për atë që rrëzon figurën
+  // "Juuu-huuu!" — brohoritje e gëzuar për atë që rrëzon figurën
   yes: (c, t) => {
-    [392, 523.25, 659.25].forEach((f, i) => tone(c, t + i * 0.08, f, f, 0.16, 0.2, 'triangle'));
-    [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(c, t + 0.26, f, f * 1.01, 0.6, 0.11, 'triangle'));
-    tone(c, t + 0.26, 1568, 2093, 0.25, 0.05);
-    say('Yesss!', 1.25);
+    whoop(c, t, [[0, 280], [0.18, 420], [0.45, 470]], 0.5); // juuu
+    noise(c, t + 0.5, 0.07, 0.05, 'bandpass', 1800, 1200, 1); // h
+    whoop(c, t + 0.52, [[0, 430], [0.2, 700], [0.55, 760], [0.85, 640]], 0.55); // huuuu
+    // konfeti dhe duartrokitje
+    [0.55, 0.7, 0.85, 1.0, 1.15].forEach((d) => noise(c, t + d + Math.random() * 0.04, 0.05, 0.12, 'bandpass', 1400 + Math.random() * 600, 1200, 1.5));
+    [784, 1046.5, 1318.5].forEach((f, i) => tone(c, t + 0.6 + i * 0.07, f, f, 0.35, 0.05, 'triangle'));
   },
   // figura jote u rrëzua: "ua-ua-uaaa" që zbret
   ouch: (c, t) => {
     tone(c, t, 392, 370, 0.22, 0.18, 'triangle');
     tone(c, t + 0.25, 370, 349, 0.22, 0.18, 'triangle');
     tone(c, t + 0.5, 349, 233, 0.6, 0.2, 'triangle');
-    say('Oh no!', 0.8);
   },
   // të tjerët dëgjojnë një "bonk"
   knock: (c, t) => {
@@ -185,7 +200,6 @@ const SOUNDS: Record<SoundName, (c: AudioContext, t: number, n?: number) => void
       tone(c, t + at, midi(n) * 2, midi(n) * 2, d, 0.04, 'sine');
     });
     [60, 64, 67, 72].forEach((n) => tone(c, t + 0.93, midi(n), midi(n), 1.1, 0.07, 'triangle'));
-    say('Yesss!', 1.2);
   },
   // guri rrëshqet butë nga stiva
   tileDraw: (c, t) => {
@@ -239,92 +253,4 @@ export function playSound(name: SoundName, n = 0) {
   if (!c || !master) return;
   if (c.state === 'suspended') c.resume().catch(() => {});
   try { SOUNDS[name](c, c.currentTime + 0.005, n); } catch { /* s'ka rëndësi */ }
-}
-
-/* ── muzika e sfondit: melodi e gëzuar me marimbë, bas dhe shushurimë ── */
-const MUSIC_KEY = 'gz_music_off';
-let musicOff = false;
-let musicWanted = false;
-let musicBus: GainNode | null = null;
-let musicTimer: ReturnType<typeof setInterval> | null = null;
-let nextNote = 0;
-let musicStep = 0;
-const musicListeners = new Set<(off: boolean) => void>();
-if (typeof window !== 'undefined') {
-  try { musicOff = window.localStorage.getItem(MUSIC_KEY) === '1'; } catch { /* s'ka rëndësi */ }
-}
-
-const EIGHTH = 60 / 112 / 2;
-// C – G – Am – F
-const CHORDS: [number, number[]][] = [[48, [0, 4, 7]], [43, [0, 4, 7]], [45, [0, 3, 7]], [41, [0, 4, 7]]];
-// dy fraza melodie (16 të teta secila), -1 = pushim
-const MELODY = [
-  [76, -1, 79, 76, 72, -1, 74, 76, 79, -1, 81, 79, 76, -1, -1, -1, 74, -1, 76, 74, 72, -1, 69, 72, 74, -1, 72, -1, -1, -1, -1, -1],
-  [72, 74, 76, -1, 79, -1, 76, -1, 81, 79, 76, 79, -1, -1, -1, -1, 77, -1, 76, 74, 72, -1, 74, -1, 76, -1, 72, -1, -1, -1, -1, -1],
-];
-
-function scheduleMusic() {
-  const c = ctx;
-  if (!c || !musicBus) return;
-  if (nextNote < c.currentTime - 0.1) nextNote = c.currentTime + 0.05; // skeda ishte në sfond
-  while (nextNote < c.currentTime + 0.3) {
-    const at = nextNote, st = musicStep;
-    const bar = Math.floor(st / 8) % 4, beat = st % 8;
-    const [root, chord] = CHORDS[bar];
-    if (beat === 0) tone(c, at, midi(root), midi(root), 0.4, 0.2, 'triangle', musicBus);
-    if (beat === 4) tone(c, at, midi(root + 7), midi(root + 7), 0.35, 0.16, 'triangle', musicBus);
-    if (beat === 6) tone(c, at, midi(root + 12), midi(root + 12), 0.18, 0.12, 'triangle', musicBus);
-    if (beat === 2 || beat === 6) chord.forEach((x) => mallet(c, at, midi(root + 24 + x), 0.25, 0.035, musicBus!));
-    const phrase = MELODY[Math.floor(st / 64) % 2];
-    const note = phrase[st % 32];
-    if (note > 0) mallet(c, at, midi(note), 0.35, 0.075, musicBus);
-    noise(c, at, 0.03, beat % 2 ? 0.025 : 0.012, 'bandpass', 7000, 7000, 1, musicBus);
-    nextNote += EIGHTH;
-    musicStep++;
-  }
-}
-
-function beginMusic() {
-  const c = audio();
-  if (!c || !master || musicTimer) return;
-  musicBus = c.createGain();
-  musicBus.gain.setValueAtTime(0.0001, c.currentTime);
-  musicBus.gain.linearRampToValueAtTime(0.55, c.currentTime + 2);
-  musicBus.connect(master);
-  nextNote = c.currentTime + 0.1;
-  musicStep = 0;
-  musicTimer = setInterval(scheduleMusic, 100);
-}
-
-function endMusic() {
-  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
-  const g = musicBus, c = ctx;
-  musicBus = null;
-  if (g && c) {
-    g.gain.cancelScheduledValues(c.currentTime);
-    g.gain.setValueAtTime(g.gain.value, c.currentTime);
-    g.gain.linearRampToValueAtTime(0, c.currentTime + 0.4);
-    setTimeout(() => g.disconnect(), 700);
-  }
-}
-
-/** Nis muzikën e sfondit (luhet vetëm kur zëri dhe muzika janë ndezur). */
-export function startMusic() {
-  musicWanted = true;
-  if (!muted && !musicOff) beginMusic();
-}
-export function stopMusic() {
-  musicWanted = false;
-  endMusic();
-}
-export const isMusicOff = () => musicOff;
-export function setMusicOff(off: boolean) {
-  musicOff = off;
-  try { window.localStorage.setItem(MUSIC_KEY, off ? '1' : '0'); } catch { /* s'ka rëndësi */ }
-  if (off) endMusic(); else if (musicWanted && !muted) beginMusic();
-  musicListeners.forEach((fn) => fn(off));
-}
-export function onMusicChange(fn: (off: boolean) => void) {
-  musicListeners.add(fn);
-  return () => { musicListeners.delete(fn); };
 }
