@@ -158,7 +158,7 @@ function cellBg(r: number, c: number): { bg: string; arrow?: string; star?: bool
 
 /* ───────────── movement ───────────── */
 const HOP_MS = 260;
-const ROLL_MS = 5000; // zari rrotullohet 5 sekonda
+const ROLL_MS = 3000; // zari rrotullohet 3 sekonda
 const LANDED_MS = 1800; // numri i madh qëndron pak pasi ndalet zari
 const SAVE_ATTEMPTS = 3;
 const BASE_CENTER: Record<LudoColor, [number, number]> = {
