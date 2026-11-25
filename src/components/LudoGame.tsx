@@ -6,10 +6,11 @@ import {
   normalizeLudoState, LAST_MAIN, FINISH, isLudoBot, ludoStandings,
 } from '@/lib/ludoLogic';
 import { StaleStateError } from '@/lib/roomSync';
-import { playSound } from '@/lib/sound';
+import { playSound, startMusic, stopMusic, isMusicOff, setMusicOff, onMusicChange } from '@/lib/sound';
+import Fireworks from '@/components/Fireworks';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
-import { RotateCcw, Trophy } from 'lucide-react';
+import { RotateCcw, Trophy, Music } from 'lucide-react';
 
 interface LudoGameProps {
   gameState: LudoGameState;
@@ -158,8 +159,8 @@ function cellBg(r: number, c: number): { bg: string; arrow?: string; star?: bool
 
 /* ───────────── movement ───────────── */
 const HOP_MS = 260;
-const ROLL_MS = 3000; // zari rrotullohet 3 sekonda
-const LANDED_MS = 1800; // numri i madh qëndron pak pasi ndalet zari
+const ROLL_MS = 1000; // zari rrotullohet 1 sekondë
+const LANDED_MS = 1300; // numri i madh qëndron pak pasi ndalet zari
 const SAVE_ATTEMPTS = 3;
 const BASE_CENTER: Record<LudoColor, [number, number]> = {
   red: [3, 3], blue: [3, 12], yellow: [12, 12], green: [12, 3],
@@ -246,8 +247,12 @@ export default function LudoGame({
   useEffect(() => {
     if (!rolling) return;
     playSound('dice');
-    const rattle = setInterval(() => playSound('dice'), 900);
-    const stop = setTimeout(() => { setRolling(false); setLanded(landedInfo()); playSound('diceLand'); }, ROLL_MS);
+    const rattle = setInterval(() => playSound('dice'), 420);
+    const stop = setTimeout(() => {
+      const info = landedInfo();
+      setRolling(false); setLanded(info);
+      playSound(info.value === 6 ? 'six' : 'diceLand');
+    }, ROLL_MS);
     return () => { clearInterval(rattle); clearTimeout(stop); };
   }, [rolling, seenRoll]);
   useEffect(() => {
@@ -261,8 +266,10 @@ export default function LudoGame({
   const busy = moving || saving || rolling;
 
   /* kërcimi, një fushë në çdo hap */
+  const hopN = useRef(0);
   useEffect(() => {
-    if (!moving || rolling) return;
+    if (!moving) { hopN.current = 0; return; }
+    if (rolling) return;
     const t = setTimeout(() => {
       const target = positionsOf(gameState);
       const next = nextHop(shown, target);
@@ -272,8 +279,13 @@ export default function LudoGame({
         ? Object.keys(target).filter((pid) => target[pid].some((pos, i) => pos === -1 && (shown[pid]?.[i] ?? -1) >= 0))
         : [];
       const reset = victims.length && Object.keys(target).every((pid) => target[pid].every((pos) => pos === -1));
-      if (!victims.length || reset) playSound('hop');
-      else if (victims.includes(currentPlayerId)) playSound('ouch');
+      if (!victims.length || reset) {
+        const changed = (test: (pos: number, was: number) => boolean) =>
+          Object.keys(next).some((pid) => next[pid].some((pos, i) => test(pos, shown[pid]?.[i] ?? -1)));
+        if (changed((pos, was) => pos === FINISH && was !== FINISH)) playSound('home');
+        else if (changed((pos, was) => pos === 0 && was === -1)) playSound('enter');
+        else playSound('hop', hopN.current++);
+      } else if (victims.includes(currentPlayerId)) playSound('ouch');
       else if (gameState.rolledBy === currentPlayerId) playSound('yes');
       else playSound('knock');
     }, HOP_MS);
@@ -331,6 +343,27 @@ export default function LudoGame({
   }, [serverState.status, serverState.winnerId, serverState.players, currentPlayerId]);
 
   const isMyTurn = gameState.currentTurn === currentPlayerId && gameState.status === 'playing';
+
+  /* muzika e sfondit gjatë lojës */
+  const playing = gameState.status === 'playing';
+  useEffect(() => {
+    if (!playing) return;
+    startMusic();
+    return () => stopMusic();
+  }, [playing]);
+  const [musicOff, setMusicState] = useState(false);
+  useEffect(() => {
+    setMusicState(isMusicOff()); // eslint-disable-line react-hooks/set-state-in-effect -- lexohet nga shfletuesi vetëm pas hapjes
+    return onMusicChange(setMusicState);
+  }, []);
+
+  /* "ding" kur të vjen radha */
+  const myCall = isMyTurn && !gameState.hasRolled && !busy;
+  useEffect(() => { if (myCall) playSound('turn'); }, [myCall]);
+
+  /* fundi: fanfarë + fishekzjarre */
+  const celebrate = gameState.status === 'finished' && !moving;
+  useEffect(() => { if (celebrate) playSound('victory'); }, [celebrate]);
   const me = gameState.players[currentPlayerId];
   const movable = isMyTurn && !busy && gameState.hasRolled && gameState.diceValue !== null && me
     ? getMovableTokenIndices(me, gameState.diceValue) : [];
@@ -362,11 +395,12 @@ export default function LudoGame({
     const w = gameState.winnerId ? gameState.players[gameState.winnerId] : null;
     return (
       <div className="h-full flex items-center justify-center px-4">
-        <div className="gz-panel rounded-[30px] p-8 text-center max-w-sm w-full">
+        <Fireworks key={gameState.gameId} />
+        <div className="gz-panel rounded-[30px] p-8 text-center max-w-sm w-full relative ld-win">
           <div className="w-24 h-32 mx-auto mb-2 animate-bounce">
             {w ? <Pawn color={w.color} /> : <Trophy className="w-16 h-16 text-gold mx-auto" />}
           </div>
-          <h2 className="font-display font-bold text-3xl mb-1">Loja përfundoi!</h2>
+          <h2 className="font-display font-bold text-3xl mb-1">{w?.id === currentPlayerId ? <>🎉 <span className="ld-win-title">Fitove!</span> 🎉</> : <span className="ld-win-title">Loja përfundoi!</span>}</h2>
           <p className="text-gold font-display font-semibold text-xl mb-5">👑 {w?.nickname || 'Lojtari'} fitoi!</p>
           <ol className="text-left space-y-1.5 mb-6">
             {ludoStandings(gameState).map((row, i) => (
@@ -385,6 +419,13 @@ export default function LudoGame({
             </button>
           )}
           <p className="text-xs text-mute mt-3">Dhoma mbetet e hapur — lojtarët e rinj mund të hyjnë.</p>
+          <style>{`
+            .ld-win { animation: ld-win-in 0.7s cubic-bezier(.2,1.4,.4,1) both; }
+            @keyframes ld-win-in { from { opacity: 0; transform: scale(0.6) translateY(30px); } }
+            .ld-win-title { background: linear-gradient(90deg, #ffc83d, #ff5d73, #4cc9f0, #3ddc97, #ffc83d); background-size: 300% 100%;
+              -webkit-background-clip: text; background-clip: text; color: transparent; animation: ld-shine 3s linear infinite; }
+            @keyframes ld-shine { to { background-position: 300% 0; } }
+          `}</style>
         </div>
       </div>
     );
@@ -403,7 +444,7 @@ export default function LudoGame({
     <div className="h-full flex flex-col select-none">
 
       {/* radha */}
-      <div className="flex justify-center px-3 pt-2 shrink-0">
+      <div className="flex justify-center items-center gap-2 px-3 pt-2 shrink-0">
         <div
           className="flex items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full font-display font-semibold text-white shadow-lg"
           style={{ background: `linear-gradient(180deg, ${ZONE[curColor].light}, ${ZONE[curColor].dark})` }}
@@ -411,6 +452,17 @@ export default function LudoGame({
           <span className="w-6 h-8 -mt-2"><Pawn color={curColor} /></span>
           {rolling ? `🎲 ${rollerName} po hedh zarin…` : isMyTurn ? (gameState.hasRolled ? 'Zgjidh një gur' : 'Radha jote, hidh zarin!') : `Radha e ${curPlayer?.nickname ?? '...'}`}
         </div>
+        <button
+          type="button"
+          onClick={() => setMusicOff(!musicOff)}
+          aria-label={musicOff ? 'Ndize muzikën' : 'Fike muzikën'}
+          aria-pressed={!musicOff}
+          title={musicOff ? 'Ndize muzikën' : 'Fike muzikën'}
+          className={`relative grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/60 border border-white/15 text-white cursor-pointer transition ${musicOff ? 'opacity-50' : ''}`}
+        >
+          <Music className="w-4 h-4" />
+          {musicOff && <span className="absolute w-5 h-0.5 bg-coral rotate-45 rounded" />}
+        </button>
       </div>
 
       {/* board: sa më i madh që lejon ekrani */}
