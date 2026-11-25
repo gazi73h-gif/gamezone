@@ -1,6 +1,10 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- Chat-i i dhomës (Ludo, UNO, Yamb, Okey) me filtrim NË SERVER
 --
+-- • Lojtarët dërgojnë VETËM mesazhe të gatshme (butona); serveri refuzon çdo tekst tjetër.
+--   Lista është te send_room_message() → "allowed" dhe duhet të përputhet me CHAT_PHRASES në src/lib/chat.ts.
+--   Filtri i fjalëve më poshtë mbetet si mbrojtje shtesë.
+--
 -- • Mesazhet ruhen te room_messages dhe u shkojnë lojtarëve me Supabase
 --   Realtime (WebSocket).
 -- • Askush nuk mund të shkruajë direkt në room_messages: e vetmja rrugë
@@ -137,6 +141,10 @@ declare
 begin
   if body = '' then return jsonb_build_object('ok', false, 'reason', 'empty'); end if;
   if char_length(body) > 200 then return jsonb_build_object('ok', false, 'reason', 'too_long'); end if;
+  -- vetëm mesazhet e gatshme
+  if not (body = any (array['👋 Përshëndetje!', '👍', '😊', '👏 Bravo!', '🍀 Fat të mbarë!', '⚡ Luaj më shpejt!', '🐢 Shumë ngadalë po luan', '😜 Je shumë i dobët!'])) then
+    return jsonb_build_object('ok', false, 'reason', 'not_allowed');
+  end if;
   select nickname into nick from room_players where room_code = p_room and player_id = p_player limit 1;
   if nick is null then return jsonb_build_object('ok', false, 'reason', 'not_in_room'); end if;
   select count(*) into recent from room_messages

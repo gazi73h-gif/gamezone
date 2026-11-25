@@ -25,7 +25,7 @@ import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
 import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
 import { CHAT_GAMES, useRoomChat } from '../../../lib/chat';
-import { ChatButton, ChatPanel, ChatStyles } from '../../../components/RoomChat';
+import { ChatButton, ChatBubbles } from '../../../components/RoomChat';
 
 interface Player {
   id: string;
@@ -446,24 +446,14 @@ export default function RoomLobbyPage() {
   /* chat-i i dhomës (Ludo, UNO, Yamb, Okey) */
   const chatEnabled = !!room && room.status === 'playing' && CHAT_GAMES.includes(room.game_type) && !!currentPlayerId;
   const chat = useRoomChat(roomCode, currentPlayerId, chatEnabled);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatSeen, setChatSeen] = useState(0);
-  const lastChatId = chat.messages.at(-1)?.id ?? 0;
-  const unread = chatOpen ? 0 : chat.messages.filter((m) => m.id > chatSeen && m.player_id !== currentPlayerId).length;
-  const toggleChat = () => { setChatOpen((o) => !o); setChatSeen(lastChatId); };
-  const chatButton = chatEnabled ? <ChatButton open={chatOpen} unread={unread} onClick={toggleChat} /> : null;
-  // loja dhe chat-i ndajnë ekranin: chat-i nuk e mbulon kurrë tabelën
+  const chatButton = chatEnabled ? <ChatButton onSend={chat.send} /> : null;
+  // loja + flluskat e vogla të mesazheve (pa panel, tabela mbetet e plotë)
   const withChat = (game: React.ReactNode) => (
     <div className="relative h-dvh flex flex-col overflow-hidden text-white">
       {InactivityWarningBanner}
       {BotBanner}
-      <ChatStyles />
-      <div className="gz-split flex-1 min-h-0">
-        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden" style={{ containerType: 'size' }}>{game}</div>
-        {chatOpen && chatEnabled && (
-          <ChatPanel messages={chat.messages} me={currentPlayerId} status={chat.status} onSend={chat.send} onClose={toggleChat} />
-        )}
-      </div>
+      <div className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden" style={{ containerType: 'size' }}>{game}</div>
+      {chatEnabled && <ChatBubbles bubbles={chat.bubbles} />}
     </div>
   );
 
@@ -551,7 +541,7 @@ export default function RoomLobbyPage() {
         }}
         onRestartGame={handleStartGame}
         onLeaveRoom={handleLeaveRoom}
-        chatButton={chatEnabled ? <ChatButton open={chatOpen} unread={unread} onClick={toggleChat} className="!w-[34px] !h-[34px]" /> : null}
+        chatButton={chatEnabled ? <ChatButton onSend={chat.send} className="!w-[34px] !h-[34px]" /> : null}
       />
     );
   }

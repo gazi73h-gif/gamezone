@@ -15,6 +15,11 @@ export type ChatMessage = {
   created_at: string;
 };
 
+/** Mesazhet e vetme që lejohen (serveri pranon vetëm këto — shih send_room_message) */
+export const CHAT_PHRASES = ["👋 Përshëndetje!","👍","😊","👏 Bravo!","🍀 Fat të mbarë!","⚡ Luaj më shpejt!","🐢 Shumë ngadalë po luan","😜 Je shumë i dobët!"];
+
+export type ChatBubble = { id: number; nickname: string; body: string; mine: boolean };
+
 /** Lojërat me chat */
 export const CHAT_GAMES = ['ludo', 'uno', 'yamb', 'rummy'];
 
@@ -24,12 +29,14 @@ const REASONS: Record<string, string> = {
   slow_down: '⏳ Prit pak — po shkruan shumë shpejt.',
   too_long: 'Mesazhi është shumë i gjatë (maksimumi 200 shkronja).',
   not_in_room: 'Nuk je më në këtë dhomë.',
+  not_allowed: 'Lejohen vetëm mesazhet e gatshme.',
   empty: '',
 };
 
 export function useRoomChat(roomCode: string, playerId: string, enabled: boolean) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<'loading' | 'ok' | 'missing'>('loading');
+  const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const seen = useRef(new Set<number>());
   const lastId = useRef(0);
   const refresh = useRef<() => void>(() => {});
@@ -40,7 +47,12 @@ export function useRoomChat(roomCode: string, playerId: string, enabled: boolean
     fresh.forEach((m) => seen.current.add(m.id));
     lastId.current = Math.max(lastId.current, ...fresh.map((m) => m.id));
     setMessages((prev) => [...prev, ...fresh].sort((a, b) => a.id - b.id).slice(-100));
-    if (notify && fresh.some((m) => m.player_id !== playerId)) playSound('chat');
+    if (!notify) return;
+    if (fresh.some((m) => m.player_id !== playerId)) playSound('chat');
+    // flluskat zhduken vetë pas 4 sekondash
+    const shown = fresh.map((m) => ({ id: m.id, nickname: m.nickname, body: m.body, mine: m.player_id === playerId }));
+    setBubbles((prev) => [...prev, ...shown].slice(-3));
+    setTimeout(() => setBubbles((prev) => prev.filter((b) => !shown.some((x) => x.id === b.id))), 4000);
   });
 
   useEffect(() => {
@@ -86,5 +98,5 @@ export function useRoomChat(roomCode: string, playerId: string, enabled: boolean
     return null;
   };
 
-  return { messages, status, send };
+  return { messages, status, send, bubbles };
 }
