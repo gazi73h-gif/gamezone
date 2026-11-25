@@ -19,6 +19,8 @@ export interface LudoGameState {
   lastActionText: string;
   gameId?: number; // ndryshon me çdo lojë të re
   rev?: number; // rritet me çdo ruajtje, që të injorohen përgjigjet e vjetra nga serveri
+  rollId?: number; // rritet me çdo hedhje të zarit (për animacionin te të gjithë lojtarët)
+  rolledBy?: string;
   v?: number; // 2 = rruga pa fushën e tepërt para shtëpisë
 }
 
@@ -109,7 +111,12 @@ function getNextTurnId(state: LudoGameState, currentId: string): string {
   return state.playerOrder[(idx + 1) % state.playerOrder.length];
 }
 
-export function rollLudoDice(
+export function rollLudoDice(state: LudoGameState, playerId: string): LudoGameState {
+  const next = rollDiceInner(state, playerId);
+  return next === state ? state : { ...next, rollId: (state.rollId ?? 0) + 1, rolledBy: playerId };
+}
+
+function rollDiceInner(
   state: LudoGameState,
   playerId: string
 ): LudoGameState {

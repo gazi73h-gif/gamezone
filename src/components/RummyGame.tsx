@@ -2,17 +2,17 @@
 
 import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
-  RummyGameState, RummyTile, TileColor, FinishHow, LOSS, START_POINTS,
-  autoPlayTurn, canShowIndicator, discardRummyTile, drawRummyTile, finishOptions, finishRummyRound,
+  RummyGameState, RummyTile, TileColor, FinishHow, TOTAL_ROUNDS, WIN_POINTS,
+  autoPlayTurn, discardRummyTile, drawRummyTile, finishOptions, finishRummyRound,
   findAllMeldsInHand, isRummyBot, isTileRummyState, pairGroups, prevSeat, runBotRummyTurn,
-  showIndicator, sortHand, standings, startNextRound, validateSingleMeld,
+  sortHand, standings, totalScore, startNextRound, validateSingleMeld,
 } from '@/lib/rummyLogic';
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
 import SoundToggle from './SoundToggle';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
-import { ArrowLeft, BookOpen, Eye, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
 
 interface RummyGameProps {
   gameState: RummyGameState;
@@ -180,7 +180,7 @@ const readRack = (key: string): (string | null)[] => {
 
 const signatureOf = (s: RummyGameState) => JSON.stringify([
   s.playerOrder, s.currentTurn, s.hasDrawn, s.status, s.round, s.deck.length,
-  s.playerOrder.map((id) => [s.players[id].nickname, s.players[id].hand.length, s.discardPiles[id]?.length, s.points[id]]),
+  s.playerOrder.map((id) => [s.players[id].nickname, s.players[id].hand.length, s.discardPiles[id]?.length, totalScore(s, id)]),
 ]);
 
 function shouldAccept(incoming: RummyGameState, local: RummyGameState) {
@@ -218,7 +218,6 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const [gameState, setGameState] = useState(serverState);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
-  const [banner, setBanner] = useState<{ id: string; text: string; mine: boolean } | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [modal, setModal] = useState<'scores' | 'rules' | null>(null);
@@ -278,24 +277,6 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     const t = setTimeout(() => setToast(''), 3200);
     return () => clearTimeout(t);
   }, [toast]);
-
-  /* njoftim i madh kur dikush tregon treguesin */
-  const shownKey = `${s.gameId}|${s.round}|${s.shownIndicator.join(',')}`;
-  const [seenShown, setSeenShown] = useState(shownKey);
-  if (seenShown !== shownKey) {
-    setSeenShown(shownKey);
-    const [g, r] = shownKey.split('|');
-    const who = gameState.shownIndicator.at(-1);
-    if (seenShown.startsWith(`${g}|${r}|`) && who) {
-      const mine = who === currentPlayerId;
-      setBanner({ id: shownKey, mine, text: mine ? '👁 Tregove treguesin! Të tjerët −1' : `👁 ${gameState.players[who]?.nickname} tregoi treguesin` });
-    }
-  }
-  useEffect(() => {
-    if (!banner) return;
-    const t = setTimeout(() => setBanner(null), 2600);
-    return () => clearTimeout(t);
-  }, [banner]);
 
   /* tingujt: çdo ndryshim i lojës (edhe nga lojtarët e tjerë) */
   const piles = s.playerOrder.reduce((a, id) => a + (s.discardPiles[id]?.length ?? 0), 0);
@@ -450,15 +431,13 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const colorOf = (id: string) => SEAT_COLORS[Math.max(0, order.indexOf(id)) % SEAT_COLORS.length];
   const draggingTile = drag?.kind === 'tile' && drag.id ? byId.get(drag.id) : null;
   const jokerTile: RummyTile = { id: 'okey-preview', color: s.joker.color, number: s.joker.number, isJoker: true };
-  const canShow = canShowIndicator(s, currentPlayerId) && !saving;
-  const ranking = standings(s);
   const lastResult = s.history.at(-1);
 
   const opp = (offset: number, vertical: boolean) => {
     const id = seatAt(offset);
     const p = s.players[id];
     if (!p || id === currentPlayerId) return null;
-    return <Seat id={id} name={p.nickname} count={p.hand.length} points={s.points[id] ?? 0} active={s.status === 'playing' && s.currentTurn === id}
+    return <Seat id={id} name={p.nickname} count={p.hand.length} points={totalScore(s, id)} active={s.status === 'playing' && s.currentTurn === id}
       progress={progress} seconds={seconds} bot={isRummyBot(id)} color={colorOf(id)} vertical={vertical} />;
   };
 
@@ -499,7 +478,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
       <div className="rk-top">
         <button onClick={onLeaveRoom} className="rk-chip-btn"><ArrowLeft className="w-4 h-4" /> Dil</button>
         <div className="flex items-center gap-1.5">
-          <span className="rk-round">Raundi <b>{s.round}</b></span>
+          <span className="rk-round">Raundi <b>{s.round}</b><span className="opacity-60">/{TOTAL_ROUNDS}</span></span>
           <SoundToggle className="!w-[34px] !h-[34px]" />
           <button onClick={() => setModal('scores')} aria-label="Pikët" className="rk-icon-btn"><ListOrdered className="w-4 h-4" /></button>
           <button onClick={() => setModal('rules')} aria-label="Rregullat" className="rk-icon-btn"><BookOpen className="w-4 h-4" /></button>
@@ -556,7 +535,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-display font-semibold text-white truncate">{me?.nickname ?? 'Ti'}</span>
-                <span className="rk-pts" title="Pikët">{s.points[currentPlayerId] ?? START_POINTS}</span>
+                <span className="rk-pts" title="Pikët (më pak = më mirë)">{totalScore(s, currentPlayerId)}</span>
                 <span className={`rk-points ${inRackIds.size >= 14 ? 'rk-points-ok' : ''}`} title="Gurët në kombinime të vlefshme në raft">
                   <b>{inRackIds.size}</b>/14
                 </span>
@@ -568,12 +547,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
           <div className="rk-actions">
             {canAct && finishOpts.length > 0 && (
               <button onClick={() => finish()} className="rk-btn rk-btn-gold rk-pulse">
-                <Sparkles className="w-3.5 h-3.5" /> Mbyll{HOW_TEXT[finishOpts[0].how] ? ` (${finishOpts[0].how === 'normal' ? '' : '−' + LOSS[finishOpts[0].how]})` : ''}
-              </button>
-            )}
-            {canShow && (
-              <button onClick={() => void commit(showIndicator(s, currentPlayerId))} className="rk-btn rk-btn-gold">
-                <Eye className="w-3.5 h-3.5" /> Trego treguesin
+                <Sparkles className="w-3.5 h-3.5" /> Mbyll ({WIN_POINTS})
               </button>
             )}
             {canAct && chosen.length === 1 && (
@@ -615,7 +589,6 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
         </div>
       )}
 
-      {banner && <div key={banner.id} className={`rk-banner ${banner.mine ? 'rk-banner-mine' : ''}`} role="status">{banner.text}</div>}
 
       {toast && (
         <div role="alert" className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-night/95 border-2 border-coral text-white font-bold px-4 py-2 rounded-2xl text-xs sm:text-sm shadow-2xl max-w-[92vw] text-center">
@@ -632,13 +605,13 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
             </h2>
             <p className="text-gold font-display font-semibold text-lg mt-1">
               {s.status === 'finished'
-                ? `${s.winnerId === currentPlayerId ? 'Ti fitove' : `${s.winnerName} fitoi`} me ${s.points[s.winnerId ?? ''] ?? 0} pikë!`
+                ? `${s.winnerId === currentPlayerId ? 'Ti fitove' : `${s.winnerName} fitoi`} me ${totalScore(s, s.winnerId ?? '')} pikë!`
                 : lastResult?.winnerId
                   ? `${lastResult.winnerId === currentPlayerId ? 'Ti e mbylle' : `${s.players[lastResult.winnerId]?.nickname} e mbylli`} lojën${HOW_TEXT[lastResult.how as FinishHow] ?? ''}!`
                   : 'Stiva mbaroi — barazim.'}
             </p>
-            {s.status === 'roundOver' && lastResult?.winnerId && <p className="text-sm text-mute">Të tjerët humbin {lastResult.loss} pikë.</p>}
-            <PointsTable s={s} me={currentPlayerId} ranking={ranking} />
+            <p className="text-xs text-mute mt-1">Fituesi {WIN_POINTS}; të tjerët pikët e gurëve jashtë kombinimeve. Më pak = më mirë.</p>
+            <ScoreTable s={s} me={currentPlayerId} />
             <div className="flex flex-wrap justify-center gap-2 mt-5">
               {s.status === 'roundOver' ? (
                 <button onClick={() => void commit(startNextRound(s))} disabled={saving} className="gz-btn font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer">
@@ -669,13 +642,13 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
             {modal === 'scores' ? (
               <>
                 <h2 className="font-display font-bold text-2xl mb-1">Pikët</h2>
-                <p className="text-xs text-mute mb-2">Secili fillon me {START_POINTS}. Loja mbaron kur dikush mbetet pa pikë; fiton kush ka më shumë.</p>
-                <PointsTable s={s} me={currentPlayerId} ranking={ranking} />
+                <p className="text-xs text-mute mb-2">Fituesi i raundit merr {WIN_POINTS}; të tjerët pikët e gurëve jashtë kombinimeve. Pas {TOTAL_ROUNDS} raundeve fiton kush ka më pak.</p>
+                <ScoreTable s={s} me={currentPlayerId} />
                 {s.history.length > 0 && (
                   <ul className="mt-3 space-y-1 text-xs text-mute max-h-40 overflow-y-auto">
                     {s.history.slice().reverse().map((h) => (
                       <li key={h.round}>
-                        Raundi {h.round}: {h.winnerId ? `${s.players[h.winnerId]?.nickname ?? '—'} e mbylli${HOW_TEXT[h.how as FinishHow] ?? ''} (të tjerët −${h.loss})` : 'barazim'}
+                        Raundi {h.round}: {h.winnerId ? `${s.players[h.winnerId]?.nickname ?? '—'} e mbylli${HOW_TEXT[h.how as FinishHow] ?? ''}` : 'stiva mbaroi'}
                       </li>
                     ))}
                   </ul>
@@ -691,9 +664,8 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
                   <li>Në radhën tënde: merr gurin e stivës ose gurin që hodhi lojtari në të majtë, pastaj hidh një gur në grumbullin tënd. Ke 30 sekonda.</li>
                   <li><strong className="text-ink">Seri:</strong> 3+ gurë me ngjyrë të njëjtë radhazi (lejohet 12-13-1, jo 13-1-2). <strong className="text-ink">Grup:</strong> 3–4 gurë me numër të njëjtë dhe ngjyra të ndryshme.</li>
                   <li>Nuk ka kombinime në tavolinë. Kur 14 gurë janë në kombinime (ose 7 çifte), tërhiq të 15-in mbi stivë për ta mbyllur.</li>
-                  <li>Kur dikush mbyll, të tjerët humbin 2 pikë; 4 me çifte ose duke hedhur Okey-n; 8 me të dyja.</li>
-                  <li>Në radhën e parë, kush ka gurin tregues mund ta tregojë: të tjerët humbin 1 pikë.</li>
-                  <li>Secili fillon me {START_POINTS} pikë. Kur dikush mbetet pa pikë, fiton kush ka më shumë.</li>
+                  <li>Kush e mbyll raundin merr <strong className="text-ink">{WIN_POINTS}</strong>. Të tjerët marrin pikët e gurëve që s’i kanë në kombinime: 1–9 sa numri, 10–13 = 10, Okey-u = 10.</li>
+                  <li>Pikët mblidhen nga raundi në raund (p.sh. −20 + 11 = −9). Pas {TOTAL_ROUNDS} raundeve fiton kush ka <strong className="text-ink">më pak</strong> pikë.</li>
                 </ul>
               </>
             )}
@@ -706,20 +678,39 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   );
 }
 
-function PointsTable({ s, me, ranking }: { s: RummyGameState; me: string; ranking: ReturnType<typeof standings> }) {
+function ScoreTable({ s, me }: { s: RummyGameState; me: string }) {
+  const rows = standings(s);
+  const last = s.status === 'playing' ? -1 : s.history.length - 1;
   return (
-    <ol className="mt-3 space-y-1.5 text-left">
-      {ranking.map((r, i) => (
-        <li key={r.id} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${i === 0 ? 'bg-gold/15 border border-gold/40' : 'bg-white/5'}`}>
-          <span className="w-6">{['🥇', '🥈', '🥉'][i] ?? i + 1}</span>
-          <span className="flex-1 font-bold truncate">{r.id === me ? 'Ti' : r.nickname}</span>
-          {s.status !== 'playing' && s.roundWinnerId && r.id !== s.roundWinnerId && s.history.at(-1)?.loss ? (
-            <span className="text-xs font-bold text-coral">−{s.history.at(-1)!.loss}</span>
-          ) : null}
-          <span className={`font-display font-semibold tabular-nums ${r.total <= 0 ? 'text-coral' : ''}`}>{r.total}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-mute text-[11px] uppercase">
+            <th className="text-left font-bold py-1">Lojtari</th>
+            {Array.from({ length: TOTAL_ROUNDS }).map((_, i) => <th key={i} className="font-bold w-10">R{i + 1}</th>)}
+            <th className="font-bold w-14 text-right">Gjithsej</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.id} className={`border-t border-white/10 ${i === 0 ? 'text-gold' : ''}`}>
+              <td className="text-left py-1.5 font-bold truncate max-w-[120px]">
+                <span className="mr-1.5">{['🥇', '🥈', '🥉'][i] ?? i + 1}</span>{r.id === me ? 'Ti' : r.nickname}
+              </td>
+              {Array.from({ length: TOTAL_ROUNDS }).map((_, k) => {
+                const v = s.scores[r.id]?.[k];
+                return (
+                  <td key={k} className={`text-center tabular-nums ${k === last ? 'font-bold' : 'text-mute'} ${v !== undefined && v < 0 ? 'text-mint' : ''}`}>
+                    {v === undefined ? '–' : v > 0 ? `+${v}` : v}
+                  </td>
+                );
+              })}
+              <td className="text-right font-display font-semibold tabular-nums">{r.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

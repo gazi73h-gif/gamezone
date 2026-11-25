@@ -86,39 +86,41 @@ function Pawn({ color }: { color: LudoColor }) {
   );
 }
 
-/* ───────────── dice ───────────── */
+/* ───────────── zari 3D ───────────── */
+const PIPS: Record<number, [number, number][]> = {
+  1: [[50, 50]],
+  2: [[27, 27], [73, 73]],
+  3: [[25, 25], [50, 50], [75, 75]],
+  4: [[27, 27], [73, 27], [27, 73], [73, 73]],
+  5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
+  6: [[27, 22], [73, 22], [27, 50], [73, 50], [27, 78], [73, 78]],
+};
+// faqja e çdo numri dhe rrotullimi i kubit që e kthen atë nga lojtari
+const FACE: Record<number, string> = { 1: 'rotateY(0deg)', 6: 'rotateY(180deg)', 2: 'rotateY(90deg)', 5: 'rotateY(-90deg)', 3: 'rotateX(90deg)', 4: 'rotateX(-90deg)' };
+const SHOW: Record<number, string> = { 1: 'rotateX(0deg) rotateY(0deg)', 6: 'rotateY(-180deg)', 2: 'rotateY(-90deg)', 5: 'rotateY(90deg)', 3: 'rotateX(-90deg)', 4: 'rotateX(90deg)' };
+
 function Dice({ value, rolling, canRoll, onClick }: {
   value: number | null; rolling: boolean; canRoll: boolean; onClick: () => void;
 }) {
-  const DOT_POS: Record<number, [number, number][]> = {
-    1: [[50, 50]],
-    2: [[25, 25], [75, 75]],
-    3: [[25, 25], [50, 50], [75, 75]],
-    4: [[25, 25], [75, 25], [25, 75], [75, 75]],
-    5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
-    6: [[25, 20], [75, 20], [25, 50], [75, 50], [25, 80], [75, 80]],
-  };
-  const dots = value ? DOT_POS[value] || [] : [];
+  const v = value ?? 1;
   return (
     <button
       aria-label="Hidh zarin"
       onClick={onClick}
       disabled={!canRoll}
-      className={`relative w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-[20px] transition-all select-none
-        ${canRoll
-          ? 'cursor-pointer active:translate-y-1 bg-gradient-to-b from-white to-[#ece9ff] shadow-[0_6px_0_#b4acf0,0_0_0_4px_#ffc83d,0_12px_28px_rgba(255,200,61,0.45)]'
-          : 'cursor-default bg-gradient-to-b from-white to-[#e4e1f5] shadow-[0_5px_0_#8f88c4] opacity-80'}
-        ${rolling ? 'animate-spin' : ''}`}
+      className={`ld-dice ${canRoll ? 'ld-can' : ''}`}
     >
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1">
-        {dots.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="9"
-            fill={value === 1 ? '#e53935' : '#231942'} />
-        ))}
-        {!value && !rolling && (
-          <text x="50" y="62" textAnchor="middle" fontSize="36" fill="#94a3b8">?</text>
-        )}
-      </svg>
+      <span className="ld-scene">
+        <span className={`ld-cube ${rolling ? 'ld-rolling' : ''}`} style={rolling ? undefined : { transform: `rotateX(-16deg) rotateY(20deg) ${SHOW[v]}` }}>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <span key={n} className="ld-face" style={{ transform: `${FACE[n]} translateZ(var(--half))` }}>
+              <svg viewBox="0 0 100 100" className="w-full h-full">
+                {PIPS[n].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="10" fill={n === 1 ? '#e53935' : '#231942'} />)}
+              </svg>
+            </span>
+          ))}
+        </span>
+      </span>
     </button>
   );
 }
@@ -156,7 +158,8 @@ function cellBg(r: number, c: number): { bg: string; arrow?: string; star?: bool
 
 /* ───────────── movement ───────────── */
 const HOP_MS = 260;
-const ROLL_MS = 300;
+const ROLL_MS = 5000; // zari rrotullohet 5 sekonda
+const LANDED_MS = 1800; // numri i madh qëndron pak pasi ndalet zari
 const SAVE_ATTEMPTS = 3;
 const BASE_CENTER: Record<LudoColor, [number, number]> = {
   red: [3, 3], blue: [3, 12], yellow: [12, 12], green: [12, 3],
@@ -210,7 +213,6 @@ export default function LudoGame({
 }: LudoGameProps) {
   const serverState = normalizeLudoState(rawServerState);
   const winRef = useRef(false);
-  const [rolling, setRolling] = useState(false);
   // gameState = gjendja më e re (pa pritur serverin), shown = ku duken gurët gjatë kërcimit
   const [gameState, setGameState] = useState(serverState);
   const [shown, setShown] = useState(() => positionsOf(serverState));
@@ -226,6 +228,33 @@ export default function LudoGame({
   }
 
   useEffect(() => { serverRef.current = serverState; }, [serverState]);
+
+  /* zari: çdo hedhje e re (rollId) rrotullohet 5 sekonda, pastaj tregon numrin */
+  const rollKey = `${gameState.gameId}|${gameState.rollId ?? 0}`;
+  const [seenRoll, setSeenRoll] = useState(rollKey);
+  const [rolling, setRolling] = useState(false);
+  const [landed, setLanded] = useState<{ key: string; value: number; name: string } | null>(null);
+  if (rollKey !== seenRoll) {
+    const sameGame = seenRoll.split('|')[0] === rollKey.split('|')[0];
+    setSeenRoll(rollKey);
+    if (sameGame && gameState.diceValue) { setRolling(true); setLanded(null); }
+  }
+  const landedInfo = useEffectEvent(() => ({
+    key: rollKey, value: gameState.diceValue ?? 1,
+    name: gameState.rolledBy === currentPlayerId ? 'Ti' : gameState.players[gameState.rolledBy ?? '']?.nickname ?? '',
+  }));
+  useEffect(() => {
+    if (!rolling) return;
+    playSound('dice');
+    const rattle = setInterval(() => playSound('dice'), 900);
+    const stop = setTimeout(() => { setRolling(false); setLanded(landedInfo()); playSound('hop'); }, ROLL_MS);
+    return () => { clearInterval(rattle); clearTimeout(stop); };
+  }, [rolling, seenRoll]);
+  useEffect(() => {
+    if (!landed) return;
+    const t = setTimeout(() => setLanded(null), LANDED_MS);
+    return () => clearTimeout(t);
+  }, [landed]);
 
   const moving = gameState.playerOrder.some((id) =>
     gameState.players[id].tokens.some((pos, i) => shown[id]?.[i] !== pos));
@@ -299,9 +328,6 @@ export default function LudoGame({
   /* handle roll */
   const handleRoll = () => {
     if (!isMyTurn || gameState.hasRolled || busy) return;
-    setRolling(true);
-    playSound('dice');
-    setTimeout(() => setRolling(false), ROLL_MS);
     void commit(rollAndAutoMove(gameState, currentPlayerId));
   };
 
@@ -356,7 +382,9 @@ export default function LudoGame({
 
   /* ── current player info ── */
   const curPlayer = gameState.players[gameState.currentTurn];
-  const curColor = curPlayer?.color ?? 'red';
+  // gjatë rrotullimit tregohet kush po hedh, që rezultati të mos zbulohet para se të ndalet zari
+  const rollerName = gameState.rolledBy === currentPlayerId ? 'Ti' : gameState.players[gameState.rolledBy ?? '']?.nickname ?? '';
+  const curColor = (rolling ? gameState.players[gameState.rolledBy ?? '']?.color : undefined) ?? curPlayer?.color ?? 'red';
 
   /* ── board rendering ── */
   const BOARD_SIZE = 15;
@@ -371,7 +399,7 @@ export default function LudoGame({
           style={{ background: `linear-gradient(180deg, ${ZONE[curColor].light}, ${ZONE[curColor].dark})` }}
         >
           <span className="w-6 h-8 -mt-2"><Pawn color={curColor} /></span>
-          {isMyTurn ? (gameState.hasRolled ? 'Zgjidh një gur' : 'Radha jote, hidh zarin!') : `Radha e ${curPlayer?.nickname ?? '...'}`}
+          {rolling ? `🎲 ${rollerName} po hedh zarin…` : isMyTurn ? (gameState.hasRolled ? 'Zgjidh një gur' : 'Radha jote, hidh zarin!') : `Radha e ${curPlayer?.nickname ?? '...'}`}
         </div>
       </div>
 
@@ -506,6 +534,13 @@ export default function LudoGame({
 
             </div>
 
+            {landed && (
+                <div key={landed.key} className="ld-landed" role="status">
+                  <span className="ld-landed-name">{landed.name}</span>
+                  <span className="ld-landed-num">{landed.value}</span>
+                </div>
+              )}
+
             {/* ── Figurat: shtresë mbi tabelë (jashtë overflow), që të kërcejnë nga fusha në fushë ── */}
             <div style={{ position: 'absolute', inset: 8, pointerEvents: 'none' }}>
               {tokens.map((tk) => {
@@ -552,7 +587,7 @@ export default function LudoGame({
       {/* ── Lojtarët dhe zari ── */}
       <div className="w-full max-w-2xl mx-auto px-3 pb-3 shrink-0">
         <div className={`text-center text-xs sm:text-sm font-semibold mb-2 min-h-[20px] ${saveFailed ? 'text-coral' : 'text-mute'}`}>
-          {saveFailed ? '⚠️ Lëvizja nuk u ruajt. Kontrollo internetin dhe provo përsëri.' : gameState.lastActionText}
+          {saveFailed ? '⚠️ Lëvizja nuk u ruajt. Kontrollo internetin dhe provo përsëri.' : rolling ? 'Zari po rrotullohet…' : gameState.lastActionText}
         </div>
 
         <div className="gz-panel rounded-[26px] p-2 flex items-center gap-2">
@@ -560,7 +595,7 @@ export default function LudoGame({
             {gameState.playerOrder.map((pid) => {
               const p = gameState.players[pid];
               if (!p) return null;
-              const active = gameState.currentTurn === pid;
+              const active = rolling ? gameState.rolledBy === pid : gameState.currentTurn === pid;
               const isSelf = pid === currentPlayerId;
               const homeCount = p.tokens.filter((x) => x === FINISH).length;
               const isBot = pid.startsWith('BOT');
@@ -600,7 +635,7 @@ export default function LudoGame({
               onClick={handleRoll}
             />
             <span className="font-display text-[11px] font-semibold text-gold h-3.5 leading-none">
-              {isMyTurn && !gameState.hasRolled && !busy ? 'Hidh!' : ''}
+              {rolling ? 'Po rrotullohet…' : isMyTurn && !gameState.hasRolled && !busy ? 'Hidh!' : ''}
             </span>
           </div>
         </div>
@@ -608,6 +643,33 @@ export default function LudoGame({
 
       {/* animations */}
       <style>{`
+        .ld-dice { --s: 60px; --half: 30px; width: calc(var(--s) + 8px); height: calc(var(--s) + 8px); display: grid; place-items: center;
+          background: none; border: none; padding: 0; border-radius: 18px; cursor: default; }
+        .ld-dice.ld-can { cursor: pointer; animation: ld-glow 1.3s ease-in-out infinite; }
+        @keyframes ld-glow { 50% { filter: drop-shadow(0 0 10px rgba(255,200,61,0.9)); } }
+        .ld-scene { width: var(--s); height: var(--s); perspective: 420px; display: block; }
+        .ld-cube { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d;
+          transition: transform 0.9s cubic-bezier(.2,1.25,.35,1); }
+        .ld-face { position: absolute; inset: 0; display: block; border-radius: 13px; padding: 6%;
+          background: radial-gradient(circle at 30% 25%, #ffffff, #f2ede0 60%, #ddd3bb);
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08), inset -4px -5px 10px rgba(0,0,0,0.12); backface-visibility: hidden; }
+        .ld-rolling { animation: ld-roll 0.75s linear infinite; }
+        @keyframes ld-roll {
+          0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0); }
+          25% { transform: rotateX(200deg) rotateY(90deg) rotateZ(40deg) translateY(-8px); }
+          50% { transform: rotateX(380deg) rotateY(200deg) rotateZ(80deg) translateY(0); }
+          75% { transform: rotateX(560deg) rotateY(290deg) rotateZ(130deg) translateY(-8px); }
+          100% { transform: rotateX(720deg) rotateY(360deg) rotateZ(180deg) translateY(0); }
+        }
+        .ld-landed { position: absolute; left: 50%; top: 50%; z-index: 400; pointer-events: none; transform: translate(-50%, -50%);
+          display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px 12px; border-radius: 22px;
+          background: rgba(13,10,36,0.88); border: 2px solid #ffc83d; box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+          animation: ld-pop ${LANDED_MS}ms ease-out forwards; }
+        .ld-landed-name { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.8); }
+        .ld-landed-num { font-family: var(--font-display); font-weight: 700; font-size: 54px; line-height: 1; color: #ffc83d; text-shadow: 0 4px 0 rgba(0,0,0,0.35); }
+        @keyframes ld-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+          25% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); } }
+        @media (prefers-reduced-motion: reduce) { .ld-rolling { animation-duration: 2s; } .ld-landed { animation: none; } }
         .ludo-hop {
           display: block; width: 100%; height: 100%;
           transform-origin: 50% ${PAWN_FOOT * 100}%;

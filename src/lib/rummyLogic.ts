@@ -7,9 +7,8 @@
 // - nuk ka kombinime në tavolinë: lojën e mbyll kush i ka 14 gurë në kombinime (ose 7 çifte)
 //   dhe hedh të 15-in mbi stivë
 // - seri: e njëjta ngjyrë radhazi (lejohet 12-13-1, jo 13-1-2); grup: i njëjti numër, ngjyra të ndryshme
-// - pikët: secili fillon me 20; kur dikush mbyll, të tjerët humbin 2 (4 me çifte ose duke hedhur Okey-n,
-//   8 me të dyja); kush tregon treguesin në radhën e parë u heq të tjerëve 1 pikë
-// - loja mbaron kur dikush mbetet pa pikë; fiton kush ka më shumë
+// - pikët: fituesi i raundit merr −20; të tjerët marrin pikët e gurëve që s'i kanë në kombinime
+//   (1–9 sa numri, 10–13 = 10, Okey-u = 10). Pikët mblidhen; pas 4 raundeve fiton kush ka më pak.
 
 export type TileColor = 'red' | 'blue' | 'black' | 'orange';
 export const TILE_COLORS: TileColor[] = ['red', 'blue', 'black', 'orange'];
@@ -34,11 +33,11 @@ export interface RoundResult {
   round: number;
   winnerId: string | null; // null = stiva mbaroi, barazim
   how: FinishHow | 'draw';
-  loss: number;
+  points: Record<string, number>; // pikët e secilit lojtar në këtë raund
 }
 
 export interface RummyGameState {
-  version: 4;
+  version: 5;
   gameId: number;
   rev: number;
   round: number;
@@ -51,9 +50,8 @@ export interface RummyGameState {
   currentTurn: string;
   hasDrawn: boolean;
   lastDrawnTileId: string | null;
-  discardedOnce: Record<string, boolean>; // për treguesin: vetëm para hedhjes së parë
-  shownIndicator: string[];
-  points: Record<string, number>;
+  discardedOnce: Record<string, boolean>;
+  scores: Record<string, number[]>; // pikët e çdo raundi për secilin lojtar
   history: RoundResult[];
   finishTile: RummyTile | null; // guri me të cilin u mbyll loja (mbi stivë)
   status: 'playing' | 'roundOver' | 'finished';
@@ -65,16 +63,16 @@ export interface RummyGameState {
 
 export const RUMMY_SEATS = 4;
 export const HAND_SIZE = 14;
-export const START_POINTS = 20;
-export const LOSS: Record<FinishHow, number> = { normal: 2, pairs: 4, okey: 4, 'pairs-okey': 8 };
-export const INDICATOR_LOSS = 1;
+export const TOTAL_ROUNDS = 4;
+export const WIN_POINTS = -20;
+export const JOKER_PENALTY = 10;
 
 export const isRummyBot = (id: string) => id.startsWith('BOT_RUMMY');
 
 // Lojërat me rregullat e mëparshme duhet të fillojnë nga e para
 export function isTileRummyState(s: unknown): s is RummyGameState {
   const st = s as Partial<RummyGameState> | null;
-  return !!st && st.version === 4 && !!st.indicator;
+  return !!st && st.version === 5 && !!st.indicator;
 }
 
 /* ───────────── gurët ───────────── */
@@ -93,7 +91,6 @@ export const jokerFor = (indicator: { color: TileColor; number: number }) => ({
   number: indicator.number === 13 ? 1 : indicator.number + 1,
 });
 
-const same = (a: RummyTile, b: RummyTile) => a.color === b.color && a.number === b.number;
 
 /* ───────────── kombinimet ───────────── */
 
@@ -247,7 +244,7 @@ export function finishOptions(hand: RummyTile[]): { tileId: string; how: FinishH
     const how = finishWith(hand, t.id);
     if (how) out.push({ tileId: t.id, how });
   }
-  return out.sort((a, b) => LOSS[b.how] - LOSS[a.how]);
+  return out;
 }
 
 // Kombinimet më të mira në dorë (për botin dhe butonin "Kombinime")
@@ -311,7 +308,7 @@ const nextSeat = (s: Pick<RummyGameState, 'playerOrder'>, id: string) =>
 function dealRound(
   seats: { id: string; nickname: string }[],
   round: number,
-  base: Pick<RummyGameState, 'gameId' | 'rev' | 'points' | 'history'>,
+  base: Pick<RummyGameState, 'gameId' | 'rev' | 'scores' | 'history'>,
 ): RummyGameState {
   const plain: RummyTile[] = [];
   for (let copy = 0; copy < 2; copy++) {
@@ -336,7 +333,7 @@ function dealRound(
     discardedOnce[p.id] = false;
   });
   return {
-    version: 4,
+    version: 5,
     gameId: base.gameId,
     rev: base.rev,
     round,
@@ -350,8 +347,7 @@ function dealRound(
     hasDrawn: true,
     lastDrawnTileId: null,
     discardedOnce,
-    shownIndicator: [],
-    points: base.points,
+    scores: base.scores,
     history: base.history,
     finishTile: null,
     status: 'playing',
@@ -366,9 +362,9 @@ function dealRound(
 export function initRummyGame(list: { id: string; nickname: string }[]): RummyGameState {
   const seats = list.slice(0, RUMMY_SEATS);
   for (let i = seats.length; i < RUMMY_SEATS; i++) seats.push({ id: `BOT_RUMMY_${i}`, nickname: `Bot ${i}` });
-  const points: Record<string, number> = {};
-  seats.forEach((p) => { points[p.id] = START_POINTS; });
-  return dealRound(seats, 1, { gameId: Date.now(), rev: 0, points, history: [] });
+  const scores: Record<string, number[]> = {};
+  seats.forEach((p) => { scores[p.id] = []; });
+  return dealRound(seats, 1, { gameId: Date.now(), rev: 0, scores, history: [] });
 }
 
 export function startNextRound(state: RummyGameState): RummyGameState {
@@ -377,33 +373,48 @@ export function startNextRound(state: RummyGameState): RummyGameState {
   return dealRound(seats, state.round + 1, state);
 }
 
+// Vlera e gurit që mbetet jashtë kombinimeve: 1–9 sa numri, 10–13 = 10, Okey-u = 10
+export const tileValue = (t: RummyTile) => (t.isJoker ? JOKER_PENALTY : Math.min(t.number, 10));
+
+// Pikët e dorës: vetëm gurët që s'hyjnë në kombinimet më të mira (loja i rendit vetë)
+export function handPenalty(hand: RummyTile[]): number {
+  const inMelds = new Set(findAllMeldsInHand(hand).flatMap((m) => m.tiles.map((t) => t.id)));
+  return hand.filter((t) => !inMelds.has(t.id)).reduce((a, t) => a + tileValue(t), 0);
+}
+
+export const totalScore = (s: RummyGameState, id: string) => (s.scores[id] ?? []).reduce((a, b) => a + b, 0);
+
+// Më pak pikë = më mirë
 export function standings(s: RummyGameState) {
   return s.playerOrder
-    .map((id) => ({ id, nickname: s.players[id].nickname, total: s.points[id] ?? 0 }))
-    .sort((a, b) => b.total - a.total || Number(b.id === s.roundWinnerId) - Number(a.id === s.roundWinnerId));
+    .map((id) => ({ id, nickname: s.players[id].nickname, total: totalScore(s, id) }))
+    .sort((a, b) => a.total - b.total || Number(b.id === s.roundWinnerId) - Number(a.id === s.roundWinnerId));
 }
 
-// Pas çdo ndryshimi pikësh: nëse dikush mbeti pa pikë, mbaron loja
-function settle(state: RummyGameState, text: string): RummyGameState {
-  if (Object.values(state.points).some((p) => p <= 0)) {
-    const [first] = standings(state);
-    return { ...state, status: 'finished', winnerId: first.id, winnerName: first.nickname, lastActionText: `🏆 ${first.nickname} fitoi ndeshjen me ${first.total} pikë!` };
-  }
-  return { ...state, lastActionText: text };
-}
-
+// Fundi i raundit: fituesi −20, të tjerët pikët e gurëve jashtë kombinimeve; pas raundit të 4-t mbaron loja
 function endRound(state: RummyGameState, winnerId: string | null, how: FinishHow | 'draw', extra: Partial<RummyGameState> = {}): RummyGameState {
-  const loss = how === 'draw' ? 0 : LOSS[how];
-  const points = { ...state.points };
-  if (winnerId) state.playerOrder.forEach((id) => { if (id !== winnerId) points[id] -= loss; });
+  const players = extra.players ?? state.players;
+  const points: Record<string, number> = {};
+  const scores: Record<string, number[]> = {};
+  state.playerOrder.forEach((id) => {
+    points[id] = id === winnerId ? WIN_POINTS : handPenalty(players[id].hand);
+    scores[id] = [...(state.scores[id] ?? []), points[id]];
+  });
   const ended: RummyGameState = {
-    ...state, ...extra, points,
-    history: [...state.history, { round: state.round, winnerId, how, loss }],
+    ...state, ...extra, scores,
+    history: [...state.history, { round: state.round, winnerId, how, points }],
     roundWinnerId: winnerId, hasDrawn: false, lastDrawnTileId: null, status: 'roundOver',
   };
+  if (state.round >= TOTAL_ROUNDS) {
+    const [first] = standings(ended);
+    return { ...ended, status: 'finished', winnerId: first.id, winnerName: first.nickname, lastActionText: `🏆 ${first.nickname} fitoi lojën me ${first.total} pikë!` };
+  }
   const who = winnerId ? state.players[winnerId].nickname : '';
-  const way = how === 'pairs' ? ' me çifte' : how === 'okey' ? ' duke hedhur Okey-n' : how === 'pairs-okey' ? ' me çifte dhe Okey' : '';
-  return settle(ended, winnerId ? `👑 ${who} e mbylli lojën${way}! Të tjerët humbin ${loss} pikë.` : 'Stiva mbaroi — raundi përfundoi barazim.');
+  const way = how === 'pairs' || how === 'pairs-okey' ? ' me 7 çifte' : how === 'okey' ? ' duke hedhur Okey-n' : '';
+  return {
+    ...ended,
+    lastActionText: winnerId ? `👑 ${who} e mbylli raundin${way} (${WIN_POINTS} pikë)!` : 'Stiva mbaroi — secili merr pikët e gurëve jashtë kombinimeve.',
+  };
 }
 
 export function drawRummyTile(state: RummyGameState, playerId: string, source: 'deck' | 'left'): RummyGameState {
@@ -462,23 +473,6 @@ export function finishRummyRound(state: RummyGameState, playerId: string, tileId
   };
 }
 
-// Treguesi: në radhën e parë (para hedhjes së parë), kush e ka gurin tregues ua heq të tjerëve 1 pikë
-export function canShowIndicator(state: RummyGameState, playerId: string): boolean {
-  const p = state.players[playerId];
-  return !!p && state.status === 'playing' && state.currentTurn === playerId && !state.discardedOnce[playerId] &&
-    !state.shownIndicator.includes(playerId) && p.hand.some((t) => !t.isFalse && same(t, state.indicator));
-}
-
-export function showIndicator(state: RummyGameState, playerId: string): RummyGameState {
-  if (!canShowIndicator(state, playerId)) return state;
-  const points = { ...state.points };
-  state.playerOrder.forEach((id) => { if (id !== playerId) points[id] -= INDICATOR_LOSS; });
-  return settle(
-    { ...state, points, shownIndicator: [...state.shownIndicator, playerId] },
-    `👁 ${state.players[playerId].nickname} tregoi treguesin! Të tjerët humbin ${INDICATOR_LOSS} pikë.`,
-  );
-}
-
 /* ───────────── loja automatike: koha mbaroi / boti ───────────── */
 
 const usefulIds = (hand: RummyTile[]) => new Set(findAllMeldsInHand(hand).flatMap((m) => m.tiles.map((t) => t.id)));
@@ -509,10 +503,6 @@ export function runBotRummyTurn(state: RummyGameState): RummyGameState {
   let s = state;
   const id = s.currentTurn;
   if (s.status !== 'playing' || !s.players[id]) return s;
-  if (canShowIndicator(s, id)) {
-    s = showIndicator(s, id);
-    if (s.status !== 'playing') return s;
-  }
   if (!s.hasDrawn) {
     const left = s.discardPiles[prevSeat(s, id)].at(-1);
     const hand = s.players[id].hand;
@@ -541,9 +531,8 @@ export function replaceRummySeat(state: RummyGameState, oldId: string, newId: st
     players,
     discardPiles: rekey(state.discardPiles),
     discardedOnce: rekey(state.discardedOnce),
-    points: rekey(state.points),
-    shownIndicator: state.shownIndicator.map((id) => swap(id)!),
-    history: state.history.map((h) => ({ ...h, winnerId: swap(h.winnerId) })),
+    scores: rekey(state.scores),
+    history: state.history.map((h) => ({ ...h, winnerId: swap(h.winnerId), points: rekey(h.points) })),
     playerOrder: state.playerOrder.map((id) => swap(id)!),
     currentTurn: swap(state.currentTurn)!,
     roundWinnerId: swap(state.roundWinnerId),
