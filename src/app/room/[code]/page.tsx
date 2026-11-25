@@ -24,6 +24,8 @@ import { saveRoomState } from '../../../lib/roomSync';
 import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
 import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
+import { CHAT_GAMES, useRoomChat } from '../../../lib/chat';
+import { ChatButton, ChatPanel, ChatStyles } from '../../../components/RoomChat';
 
 interface Player {
   id: string;
@@ -441,6 +443,30 @@ export default function RoomLobbyPage() {
   // Baneri "Duke luajtur me Bot AI" — u largua sipas kërkesës
   const BotBanner = null;
 
+  /* chat-i i dhomës (Ludo, UNO, Yamb, Okey) */
+  const chatEnabled = !!room && room.status === 'playing' && CHAT_GAMES.includes(room.game_type) && !!currentPlayerId;
+  const chat = useRoomChat(roomCode, currentPlayerId, chatEnabled);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatSeen, setChatSeen] = useState(0);
+  const lastChatId = chat.messages.at(-1)?.id ?? 0;
+  const unread = chatOpen ? 0 : chat.messages.filter((m) => m.id > chatSeen && m.player_id !== currentPlayerId).length;
+  const toggleChat = () => { setChatOpen((o) => !o); setChatSeen(lastChatId); };
+  const chatButton = chatEnabled ? <ChatButton open={chatOpen} unread={unread} onClick={toggleChat} /> : null;
+  // loja dhe chat-i ndajnë ekranin: chat-i nuk e mbulon kurrë tabelën
+  const withChat = (game: React.ReactNode) => (
+    <div className="relative h-dvh flex flex-col overflow-hidden text-white">
+      {InactivityWarningBanner}
+      {BotBanner}
+      <ChatStyles />
+      <div className="gz-split flex-1 min-h-0">
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden" style={{ containerType: 'size' }}>{game}</div>
+        {chatOpen && chatEnabled && (
+          <ChatPanel messages={chat.messages} me={currentPlayerId} status={chat.status} onSend={chat.send} onClose={toggleChat} />
+        )}
+      </div>
+    </div>
+  );
+
   if (!room) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-mute">
@@ -505,6 +531,7 @@ export default function RoomLobbyPage() {
             <Users className="inline w-3.5 h-3.5 -mt-0.5" /> {players.length}
           </span>
         </span>
+        {chatButton}
         <SoundToggle />
       </div>
     </div>
@@ -512,32 +539,27 @@ export default function RoomLobbyPage() {
 
   // 1. Rummy / Remi 51 (JOL)
   if (room.status === 'playing' && room.game_type === 'rummy' && room.game_state) {
-    return (
-      <div className="relative h-dvh overflow-hidden text-white">
-        {InactivityWarningBanner}
-        {BotBanner}
-        <RummyGame
-          gameState={room.game_state as RummyGameState}
-          currentPlayerId={currentPlayerId}
-          isHost={room.host_id === currentPlayerId}
-          roomCode={room.code}
-          onUpdateState={async (ns) => {
-            resetActivity();
-            await saveRoomState(roomCode, ns);
-          }}
-          onRestartGame={handleStartGame}
-          onLeaveRoom={handleLeaveRoom}
-        />
-      </div>
+    return withChat(
+      <RummyGame
+        gameState={room.game_state as RummyGameState}
+        currentPlayerId={currentPlayerId}
+        isHost={room.host_id === currentPlayerId}
+        roomCode={room.code}
+        onUpdateState={async (ns) => {
+          resetActivity();
+          await saveRoomState(roomCode, ns);
+        }}
+        onRestartGame={handleStartGame}
+        onLeaveRoom={handleLeaveRoom}
+        chatButton={chatEnabled ? <ChatButton open={chatOpen} unread={unread} onClick={toggleChat} className="!w-[34px] !h-[34px]" /> : null}
+      />
     );
   }
 
   // 2. Ludo (Mos u zemëro)
   if (room.status === 'playing' && room.game_type === 'ludo' && room.game_state) {
-    return (
-      <div className="relative h-dvh flex flex-col overflow-hidden">
-        {InactivityWarningBanner}
-        {BotBanner}
+    return withChat(
+      <div className="h-full flex flex-col">
         {gameBar}
         <div className="flex-1 min-h-0">
           <LudoGame
@@ -557,10 +579,8 @@ export default function RoomLobbyPage() {
 
   // 3. Yamb (Jamb)
   if (room.status === 'playing' && room.game_type === 'yamb') {
-    return (
-      <div className="relative min-h-screen text-white">
-        {InactivityWarningBanner}
-        {BotBanner}
+    return withChat(
+      <div className="relative min-h-full">
         {gameBar}
         <YambGame
           roomCode={room.code}
@@ -620,10 +640,8 @@ export default function RoomLobbyPage() {
 
   // 6. UNO Shqip
   if (room.status === 'playing' && room.game_type === 'uno' && room.game_state) {
-    return (
-      <div className="relative min-h-screen text-white pb-6">
-        {InactivityWarningBanner}
-        {BotBanner}
+    return withChat(
+      <div className="relative min-h-full pb-6">
         {gameBar}
         <div className="px-3">
           <UnoGame

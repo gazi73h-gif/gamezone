@@ -6,7 +6,7 @@ export type SoundName =
   | 'tileDraw' | 'tileDrop' | 'tileMove' // Okey
   | 'cardDraw' | 'cardPlay' // Pishpirik, UNO
   | 'move' | 'capture' | 'check' // Shah
-  | 'turn' | 'win';
+  | 'turn' | 'win' | 'chat';
 
 const MUTE_KEY = 'gz_muted';
 let ctx: AudioContext | null = null;
@@ -237,6 +237,11 @@ const SOUNDS: Record<SoundName, (c: AudioContext, t: number, n?: number) => void
   check: (c, t) => {
     tone(c, t, 740, 740, 0.25, 0.22);
     tone(c, t + 0.12, 988, 988, 0.3, 0.25);
+  },
+  // mesazh i ri në chat: "plop" i butë
+  chat: (c, t) => {
+    tone(c, t, 560, 880, 0.07, 0.1);
+    tone(c, t + 0.06, 880, 1180, 0.08, 0.07);
   },
   turn: (c, t) => {
     tone(c, t, 660, 660, 0.12, 0.12);

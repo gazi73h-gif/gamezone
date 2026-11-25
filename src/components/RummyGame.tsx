@@ -22,6 +22,7 @@ interface RummyGameProps {
   onUpdateState: (newState: RummyGameState) => Promise<void>;
   onRestartGame?: () => Promise<void>;
   onLeaveRoom?: () => void;
+  chatButton?: React.ReactNode;
 }
 
 const TURN_MS = 30000; // 30 sekonda për radhë
@@ -216,7 +217,7 @@ export default function RummyGame(props: RummyGameProps) {
   return <OkeyTable {...props} />;
 }
 
-function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom }: RummyGameProps) {
+function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, chatButton }: RummyGameProps) {
   const [gameState, setGameState] = useState(serverState);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
@@ -498,6 +499,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
         <button onClick={onLeaveRoom} className="rk-chip-btn"><ArrowLeft className="w-4 h-4" /> Dil</button>
         <div className="flex items-center gap-1.5">
           <span className="rk-round">Raundi <b>{s.round}</b><span className="opacity-60">/{TOTAL_ROUNDS}</span></span>
+          {chatButton}
           <SoundToggle className="!w-[34px] !h-[34px]" />
           <button onClick={() => setModal('scores')} aria-label="Pikët" className="rk-icon-btn"><ListOrdered className="w-4 h-4" /></button>
           <button onClick={() => setModal('rules')} aria-label="Rregullat" className="rk-icon-btn"><BookOpen className="w-4 h-4" /></button>
@@ -745,8 +747,9 @@ function RummyStyles() {
   return (
     <style>{`
       .rk-room {
+        position: relative; /* butonat dhe njoftimet pozicionohen brenda lojës, jo mbi chat */
         /* guri: 13 në rresht duhet të hyjnë në gjerësi, dy rreshta + tavolina në lartësi */
-        --tw: min(calc((100vw - 76px) / 13), 52px, calc((100dvh - 330px) / 2.95));
+        --tw: min(calc((100cqw - 76px) / 13), 52px, calc((100cqh - 330px) / 2.95));
         --th: calc(var(--tw) * 1.38);
         --av: 44px;
         background:
@@ -879,7 +882,7 @@ function RummyStyles() {
       @keyframes rk-pulse { 50% { box-shadow: 0 3px 0 #b86a00, 0 0 0 4px rgba(255,255,255,0.35), 0 0 22px rgba(255,200,61,0.9); } }
 
       .rk-banner {
-        position: fixed; left: 50%; top: 32%; z-index: 45; pointer-events: none; transform: translate(-50%, -50%); white-space: nowrap;
+        position: absolute; left: 50%; top: 32%; z-index: 45; pointer-events: none; transform: translate(-50%, -50%); white-space: nowrap;
         font-family: var(--font-display); font-weight: 700; font-size: clamp(16px, 4.5vw, 28px); color: #fff; padding: 12px 22px; border-radius: 999px;
         background: linear-gradient(180deg, rgba(37,31,92,0.95), rgba(13,10,36,0.95)); border: 2px solid rgba(255,200,61,0.7); box-shadow: 0 16px 40px rgba(0,0,0,0.5);
         animation: rk-banner 2.6s ease-out forwards;
@@ -897,7 +900,7 @@ function RummyStyles() {
       /* telefoni horizontal: butonat në një kolonë pranë raftit, që e gjithë tavolina të shihet */
       @media (orientation: landscape) and (max-height: 560px) {
         .rk-room {
-          --tw: min(calc((100vw - 300px) / 13), 50px, calc((100dvh - 200px) / 2.95));
+          --tw: min(calc((100cqw - 300px) / 13), 50px, calc((100cqh - 200px) / 2.95));
           --ptw: min(var(--tw), 32px);
           --av: 34px;
         }
