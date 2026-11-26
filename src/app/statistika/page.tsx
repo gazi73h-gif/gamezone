@@ -110,6 +110,42 @@ function RankBars({ title, rows, empty }: { title: string; rows: { label: string
   );
 }
 
+/** Kyçja e administratorit (lojtarët e tjerë luajnë vetëm me nofkë). */
+function AdminLogin({ onSend }: { onSend: (email: string) => Promise<string | null> }) {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState<'' | 'sending' | 'sent'>('');
+  const [error, setError] = useState('');
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || state === 'sending') return;
+    setState('sending'); setError('');
+    const err = await onSend(email);
+    if (err) {
+      setState('');
+      setError(/rate|security purposes|seconds/i.test(err) ? 'Prit pak dhe provo përsëri (shumë kërkesa). Shiko edhe email-in, ndoshta linku ka ardhur.' : err);
+      return;
+    }
+    setState('sent');
+  };
+  return (
+    <form onSubmit={send} className="gz-panel rounded-2xl p-6 max-w-sm mx-auto space-y-3" data-testid="admin-login">
+      <p className="font-display font-semibold text-lg">Vetëm për administratorin</p>
+      {state === 'sent' ? (
+        <p className="text-sm text-mint">✓ Linku u dërgua. Hap email-in (shiko edhe Spam) dhe kliko linkun.</p>
+      ) : (
+        <>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Emaili yt" aria-label="Emaili"
+            className="w-full bg-black/30 border border-white/15 rounded-xl px-4 py-3 text-base outline-none focus:border-gold" />
+          {error && <p className="text-sm text-coral">{error}</p>}
+          <button type="submit" disabled={state === 'sending'} className="gz-btn w-full font-display font-semibold py-3 rounded-xl cursor-pointer">
+            {state === 'sending' ? 'Duke dërguar…' : 'Më dërgo linkun'}
+          </button>
+        </>
+      )}
+    </form>
+  );
+}
+
 export default function StatsPage() {
   const account = useAccount();
   const online = useOnlineCount();
@@ -160,7 +196,7 @@ export default function StatsPage() {
   const note = (text: React.ReactNode) => shell(<div className="gz-panel rounded-2xl p-6 text-center text-mute max-w-md mx-auto">{text}</div>);
 
   if (!account.ready) return note('Duke u ngarkuar…');
-  if (!account.user) return note(<>Kjo faqe është vetëm për administratorin. <Link href="/" className="text-gold underline">Kyçu</Link> me llogarinë tënde dhe kthehu këtu.</>);
+  if (!account.user) return shell(<AdminLogin onSend={(email) => account.signIn(email, '/statistika')} />);
   if (problem === 'not_admin') return note('Kjo faqe është vetëm për administratorin e GameZone.');
   if (problem === 'missing') return note('Statistikat nuk janë aktivizuar ende: ekzekuto skedarin 20261127_admin_stats.sql te Supabase → SQL Editor.');
   if (problem === 'net' && !stats) return note('Statistikat nuk u ngarkuan. Kontrollo internetin dhe provo përsëri.');

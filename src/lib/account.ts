@@ -25,6 +25,11 @@ const metaName = (u: User | null): string => {
 };
 
 // cilat mënyra kyçjeje janë të ndezura në Supabase (butonat shfaqen vetëm atëherë)
+// Llogaritë për lojtarët janë mbyllur përkohësisht: luhet vetëm me nofkë. Butoni "Kyçu" del vetëm
+// për atë që është tashmë i kyçur (administratori kyçet nga faqja /statistika).
+// Kur të kemi domenin dhe Facebook-un e publikuar: ndrysho në true.
+export const ACCOUNTS_OPEN = false;
+
 // Facebook fshihet derisa aplikacioni të publikohet te Meta (tani punon vetëm për testerët).
 // Kur të publikohet: ndrysho në true.
 const FACEBOOK_PUBLISHED = false;
@@ -123,10 +128,10 @@ export function useAccount() {
     return () => { alive = false; };
   }, [user, ready]);
 
-  const signIn = useCallback(async (email: string) => {
+  const signIn = useCallback(async (email: string, path = '') => {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: window.location.origin + path },
     });
     return error?.message ?? null;
   }, []);

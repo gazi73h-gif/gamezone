@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom, MAX_SEATS } from '../lib/lobby';
-import { useAccount, bonusAvailable } from '../lib/account';
+import { useAccount, bonusAvailable, ACCOUNTS_OPEN } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
 import { useOnlineCount } from '../lib/online';
 import { UserAvatar } from '../lib/avatars';
@@ -137,7 +137,7 @@ export default function HomePage() {
             <span className="grid place-items-center w-6 h-6 rounded-full bg-gold/20"><Coins className="w-4 h-4 text-gold" /></span>
             <span className="font-display font-semibold text-gold">{(online ? account.profile!.tokens : tokens).toLocaleString()}</span>
           </div>
-          <AccountMenu account={account} />
+          {(ACCOUNTS_OPEN || account.user) && <AccountMenu account={account} />}
         </div>
       </header>
 
