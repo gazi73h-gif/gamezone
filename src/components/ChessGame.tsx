@@ -10,18 +10,62 @@ function playChessSound(type: 'move' | 'capture' | 'check' | 'win') {
   playSound(type);
 }
 interface ChessGameProps { gameState: ChessGameState; currentPlayerId: string; isHost: boolean; onUpdateState: (newState: ChessGameState) => Promise<void>; onRestartGame?: () => Promise<void>; }
+// Figurat sipas fletës së dizajnit: siluetë e qartë për çdo figurë (mbreti me kurorë të gjerë pa kryq,
+// oficeri me mitër dhe të çarë), ngjyra të sheshta që lexohen mirë edhe në telefon. viewBox 50×58.
+const PIECE_NAMES: Record<string, string> = { k: 'Mbreti', q: 'Mbretëresha', b: 'Oficeri', n: 'Kali', r: 'Kulla', p: 'Ushtari' };
 function ChessPiece3D({ piece }: { piece: ChessPiece }) {
-  const isW = piece.color === 'w'; const gid = `cp_${piece.color}_${piece.type}`; const stroke = isW ? '#0f172a' : '#e2e8f0'; const gold = '#f59e0b';
+  const w = piece.color === 'w';
+  const fill = w ? '#F6EFE0' : '#2B2635';
+  const stroke = w ? '#2A2230' : '#0D0B12';
+  const gold = w ? '#D99A1E' : '#F2B33D';
+  const shadow = <ellipse cx="25" cy="54" rx={piece.type === 'k' ? 18 : piece.type === 'p' ? 13 : 16} ry="3" fill="rgba(0,0,0,0.28)" />;
   return (
-    <svg viewBox="0 0 50 58" className="w-full h-full overflow-visible drop-shadow-[0_7px_6px_rgba(0,0,0,0.75)] select-none">
-      <defs><linearGradient id={gid} x1="15%" y1="0%" x2="85%" y2="100%">{isW ? (<><stop offset="0%" stopColor="#ffffff" /><stop offset="50%" stopColor="#f1f5f9" /><stop offset="100%" stopColor="#94a3b8" /></>) : (<><stop offset="0%" stopColor="#64748b" /><stop offset="45%" stopColor="#1e293b" /><stop offset="100%" stopColor="#020617" /></>)}</linearGradient></defs>
-      <ellipse cx="25" cy="53" rx="17" ry="4" fill="rgba(0,0,0,0.5)" />
-      {piece.type === 'p' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M11 51 H39 L36 45 H14 Z" /><path d="M16 45 C17 35, 20 29, 21 24 H29 C30 29, 33 35, 34 45 Z" /><ellipse cx="25" cy="24" rx="7.5" ry="2.5" fill={gold} /><circle cx="25" cy="15.5" r="8" /></g>)}
-      {piece.type === 'r' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 L17 21 H33 L35 45 Z" /><path d="M12 21 V11 H17.5 V15 H22 V11 H28 V15 H32.5 V11 H38 V21 Z" /><rect x="16.5" y="21" width="17" height="3" fill={gold} /></g>)}
-      {piece.type === 'n' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 C15 35, 19 29, 23 25 C17 26, 12 24, 12 19.5 C12 14, 18 10, 22 8 L20.5 3.5 L26.5 7 C33.5 9.5, 37 17, 35.5 28 C34.5 35, 35.5 40, 35.5 45 Z" /><circle cx="19" cy="14.5" r="1.6" fill={gold} stroke="none" /></g>)}
-      {piece.type === 'b' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M10 51 H40 L37 45 H13 Z" /><path d="M15 45 C16 35, 19 29, 21 25 H29 C31 29, 34 35, 35 45 Z" /><path d="M16.5 25 C15.5 17, 20 10, 25 7 C30 10, 34.5 17, 33.5 25 Z" /><circle cx="25" cy="4.5" r="2.8" fill={gold} /><path d="M21 15.5 L29 19.5 M25 13 V21" stroke={gold} strokeWidth="1.8" /></g>)}
-      {piece.type === 'q' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M9 51 H41 L38 45 H12 Z" /><path d="M14 45 L17 24 H33 L36 45 Z" /><path d="M14.5 24 L10 11 L18 18 L25 8 L32 18 L40 11 L35.5 24 Z" /><rect x="16.5" y="23.5" width="17" height="3" fill={gold} /><circle cx="10" cy="9.5" r="2.2" fill={gold} /><circle cx="25" cy="6.5" r="2.6" fill={gold} /><circle cx="40" cy="9.5" r="2.2" fill={gold} /></g>)}
-      {piece.type === 'k' && (<g fill={`url(#${gid})`} stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"><path d="M9 51 H41 L38 45 H12 Z" /><path d="M14 45 L17 23 H33 L36 45 Z" /><path d="M14.5 23 C13.5 15, 19 11, 25 11 C31 11, 36.5 15, 35.5 23 Z" /><rect x="16.5" y="22.5" width="17" height="3" fill={gold} /><path d="M23.5 11 V3 H26.5 V11 M20.5 6.5 H29.5" stroke={gold} strokeWidth="2.8" /></g>)}
+    <svg viewBox="0 0 50 58" className="w-full h-full overflow-visible drop-shadow-[0_5px_4px_rgba(0,0,0,0.55)] select-none" role="img" aria-label={`${PIECE_NAMES[piece.type]} ${w ? 'i bardhë' : 'i zi'}`}>
+      {shadow}
+      <g stroke={stroke} strokeWidth="1.6" strokeLinejoin="round">
+        {piece.type === 'k' && (<>
+          <path d="M6.5 52 H43.5 L41 46.5 H9 Z" fill={fill} />
+          <path d="M11.5 46.5 C12 38 13.5 30.5 15 25.5 H35 C36.5 30.5 38 38 38.5 46.5 Z" fill={fill} />
+          <rect x="13.5" y="24.3" width="23" height="3.4" rx="1" fill={gold} />
+          <path d="M11.5 25 C10.2 17.2 16.5 12.6 25 12.6 C33.5 12.6 39.8 17.2 38.5 25 Z" fill={fill} />
+          <rect x="14.5" y="10.4" width="21" height="3.6" rx="1.2" fill={gold} />
+          <path d="M15.5 10.8 L16.8 4.6 L20.8 8 L25 3.4 L29.2 8 L33.2 4.6 L34.5 10.8 Z" fill={fill} />
+        </>)}
+        {piece.type === 'q' && (<>
+          <path d="M9 52 H41 L38.5 46.5 H11.5 Z" fill={fill} />
+          <path d="M14 46.5 L17 25 H33 L36 46.5 Z" fill={fill} />
+          <path d="M14.5 25 L10 12.5 L18 19 L21.5 10 L25 18 L28.5 10 L32 19 L40 12.5 L35.5 25 Z" fill={fill} />
+          <rect x="16.5" y="24.5" width="17" height="2.8" fill={gold} />
+          <circle cx="10" cy="10.6" r="2.1" fill={gold} /><circle cx="21.5" cy="8" r="2" fill={gold} />
+          <circle cx="28.5" cy="8" r="2" fill={gold} /><circle cx="40" cy="10.6" r="2.1" fill={gold} />
+        </>)}
+        {piece.type === 'b' && (<>
+          <path d="M11 52 H39 L36.5 46.5 H13.5 Z" fill={fill} />
+          <path d="M17 46.5 C18 39 21 34 22 30 H28 C29 34 32 39 33 46.5 Z" fill={fill} />
+          <ellipse cx="25" cy="30" rx="7" ry="2.2" fill={gold} />
+          <path d="M19.5 29.5 C17.5 23 21 17 25 13.5 C29 17 32.5 23 30.5 29.5 Z" fill={fill} />
+          <path d="M22 25.2 L28.4 18.2" fill="none" stroke={gold} strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="25" cy="10.2" r="2.9" fill={gold} />
+        </>)}
+        {piece.type === 'n' && (<>
+          <path d="M9.5 52 H40.5 L38 46.5 H12 Z" fill={fill} />
+          <path d="M15 46.5 C15 37 19 31 23 27 C17 28 12 26 12 21.5 C12 16 18 12 22 10 L20.5 5.5 L26.5 9 C33.5 11.5 37 19 35.5 30 C34.5 37 35.5 41 35.5 46.5 Z" fill={fill} />
+          <circle cx="19" cy="16.5" r="1.7" fill={gold} stroke="none" />
+          <path d="M26.5 9.5 C29 14 30 18 29.5 22" fill="none" stroke={gold} strokeWidth="1.8" strokeLinecap="round" />
+        </>)}
+        {piece.type === 'r' && (<>
+          <path d="M9.5 52 H40.5 L38 46.5 H12 Z" fill={fill} />
+          <path d="M15 46.5 L17 25 H33 L35 46.5 Z" fill={fill} />
+          <path d="M12.5 25 V12 H18 V16 H22.5 V12 H27.5 V16 H32 V12 H37.5 V25 Z" fill={fill} />
+          <rect x="16.5" y="25" width="17" height="2.8" fill={gold} />
+        </>)}
+        {piece.type === 'p' && (<>
+          <path d="M11.5 52 H38.5 L36 46.5 H14 Z" fill={fill} />
+          <path d="M16 46.5 C17 39 20 34 21.5 29.5 H28.5 C30 34 33 39 34 46.5 Z" fill={fill} />
+          <ellipse cx="25" cy="29.5" rx="7.5" ry="2.3" fill={gold} />
+          <circle cx="25" cy="21.5" r="6.6" fill={fill} />
+        </>)}
+      </g>
     </svg>
   );
 }
@@ -142,13 +186,13 @@ export default function ChessGame({ gameState, currentPlayerId, isHost, onUpdate
                 const isTarget = legalTargets.some(([lr, lc]) => lr === r && lc === c);
                 const isLast = (gameState.lastMove?.from?.at(0) === r && gameState.lastMove?.from?.at(1) === c) || (gameState.lastMove?.to?.at(0) === r && gameState.lastMove?.to?.at(1) === c);
                 const isKingCheck = piece?.type === 'k' && gameState.inCheck === piece.color;
-                const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-amber-300' : isLast ? (isLight ? 'bg-amber-200/95' : 'bg-amber-600/90') : isLight ? 'bg-gradient-to-br from-[#f8eed9] to-[#e2cba1]' : 'bg-gradient-to-br from-[#6b4226] to-[#422512]';
-                const txtCol = isLight ? 'text-[#5c3a21]' : 'text-[#f5ebd6]';
+                const sqBg = isKingCheck ? 'bg-red-600 animate-pulse' : isSel ? 'bg-amber-300' : isLast ? (isLight ? 'bg-amber-200/95' : 'bg-amber-600/90') : isLight ? 'bg-[#EFDFC0]' : 'bg-[#A8744C]';
+                const txtCol = isLight ? 'text-[#7A4E30]' : 'text-[#F7EBD3]';
                 return (
                   <button key={`${r}-${c}`} data-square={`${r}-${c}`} onClick={() => handleCellClick(r, c)} className={`relative flex items-center justify-center transition-all ${sqBg} ${(isMyTurn && (piece?.color === myColor || isTarget)) ? 'cursor-pointer' : 'cursor-default'}`}>
                     {c === cols.at(0) && <span className={`absolute top-0.5 left-1 text-[9px] font-black select-none ${txtCol}`}>{8 - r}</span>}
                     {r === rows.at(7) && <span className={`absolute bottom-0.5 right-1 text-[9px] font-black select-none ${txtCol}`}>{files[c]}</span>}
-                    {piece && (<div style={{ transform: view3D ? 'rotateX(-14deg) translateY(-6px)' : 'none' }} className={`w-[92%] h-[92%] z-10 transition-transform duration-200 ${isSel ? 'scale-115 -translate-y-2' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
+                    {piece && (<div style={{ transform: view3D ? 'rotateX(-14deg) translateY(-6px)' : 'none' }} className={`w-[84%] h-[94%] z-10 transition-transform duration-200 ${isSel ? 'scale-115 -translate-y-2' : 'hover:scale-105'}`}><ChessPiece3D piece={piece} /></div>)}
                     {isTarget && !piece && (<span className="w-3.5 h-3.5 rounded-full bg-amber-400/80 ring-2 ring-white/80 shadow z-20" />)}
                     {isTarget && piece && (<span className="absolute inset-1 rounded-xl border-4 border-amber-400 z-20 animate-pulse" />)}
                   </button>
