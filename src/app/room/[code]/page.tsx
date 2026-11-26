@@ -21,6 +21,11 @@ import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
 import { saveRoomState } from '../../../lib/roomSync';
+
+// statistikat: sa lojëra niset (serveri injoron dyfishimet; gabimet s'e prekin lojën)
+const logGameStart = (room: string, game: string, players: number) => {
+  void supabase.rpc('log_game_start', { p_room: room, p_game: game, p_players: players }).then(() => {}, () => {});
+};
 import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
 import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
@@ -176,6 +181,7 @@ export default function RoomLobbyPage() {
               .from('rooms')
               .update({ status: 'playing', game_state: gs })
               .eq('code', roomCode);
+            logGameStart(roomCode, roomData.game_type, 1);
           }
         }
 
@@ -357,6 +363,7 @@ export default function RoomLobbyPage() {
   const handleStartGame = async () => {
     if (!room || players.length === 0) return;
     resetActivity();
+    logGameStart(roomCode, room.game_type, players.length);
 
     if (room.game_type === 'yamb') {
       const initialSheets: Record<string, ReturnType<typeof createEmptySheet>> = {};
