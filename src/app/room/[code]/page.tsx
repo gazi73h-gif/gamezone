@@ -22,6 +22,13 @@ import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
 import { saveRoomState } from '../../../lib/roomSync';
 import { closeRoom, leaveRoom, updateRoom } from '../../../lib/rooms';
+import { ludoAction, type LudoAction } from '../../../lib/ludoRemote';
+
+// Ludo: nisja dhe vendet bëhen nga serveri kur funksioni "ludo-action" është gati
+const ludoServerHandled = async (code: string, player: string, action: LudoAction) => {
+  const res = await ludoAction(code, player, action);
+  return res.ok || res.reason !== 'unavailable';
+};
 
 // statistikat: sa lojëra niset (serveri injoron dyfishimet; gabimet s'e prekin lojën)
 const logGameStart = (room: string, game: string, players: number) => {
@@ -195,7 +202,10 @@ export default function RoomLobbyPage() {
           realCount === 1 &&
           roomData.status === 'waiting'
         ) {
-          const gs = await buildInitialGameState(roomData.game_type, realPlayers, true);
+          const gs = roomData.game_type === 'ludo' && await ludoServerHandled(roomCode, storedHostId, { type: 'start' })
+            ? null
+            : await buildInitialGameState(roomData.game_type, realPlayers, true);
+          if (!gs && roomData.game_type === 'ludo') logGameStart(roomCode, roomData.game_type, 1);
           if (gs) {
             await updateRoom(storedHostId, roomCode, { status: 'playing', state: gs }).catch(() => false);
             logGameStart(roomCode, roomData.game_type, 1);
@@ -221,7 +231,9 @@ export default function RoomLobbyPage() {
         } else if (isHostNow && hostHere && roomData.status === 'playing' && SEAT_GAMES.includes(roomData.game_type)) {
           // Ludo & Okey pa bot: kush largohet zëvendësohet nga boti; në Ludo lojtari i ri zë një ngjyrë të lirë
           const next = syncSeats(roomData.game_type, roomData.game_state, realPlayers);
-          if (next) {
+          if (next && roomData.game_type === 'ludo' && await ludoServerHandled(roomCode, storedHostId, { type: 'sync' })) {
+            // serveri i sinkronizoi vendet
+          } else if (next) {
             try {
               await saveRoomState(roomCode, next, storedHostId);
             } catch {
@@ -406,6 +418,7 @@ export default function RoomLobbyPage() {
       );
       await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'ludo') {
+      if (await ludoServerHandled(roomCode, currentPlayerId, { type: 'start' })) return;
       const initialState = initLudoGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
@@ -559,6 +572,7 @@ export default function RoomLobbyPage() {
               await saveRoomState(roomCode, newState, currentPlayerId);
             }}
             onRestartGame={handleStartGame}
+            remote={(a) => ludoAction(roomCode, currentPlayerId, a)}
           />
         </div>
       </div>

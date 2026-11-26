@@ -8,6 +8,7 @@ import {
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
 import { useDiceSkin } from '@/lib/shop';
+import type { LudoAction, LudoResult } from '@/lib/ludoRemote';
 import Fireworks from '@/components/Fireworks';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
@@ -19,6 +20,8 @@ interface LudoGameProps {
   isHost: boolean;
   onUpdateState: (ns: LudoGameState) => Promise<void>;
   onRestartGame?: () => Promise<void>;
+  /** rregullat në server: zari hidhet dhe lëvizja kontrollohet nga serveri */
+  remote?: (a: LudoAction) => Promise<LudoResult>;
 }
 
 /* ───────────── board geometry ───────────── */
@@ -212,7 +215,7 @@ function tokenCenter(color: LudoColor, pos: number, idx: number): [number, numbe
 }
 
 export default function LudoGame({
-  gameState: rawServerState, currentPlayerId, isHost, onUpdateState, onRestartGame,
+  gameState: rawServerState, currentPlayerId, isHost, onUpdateState, onRestartGame, remote,
 }: LudoGameProps) {
   const serverState = normalizeLudoState(rawServerState);
   const winRef = useRef(false);
@@ -317,15 +320,35 @@ export default function LudoGame({
     setSaving(false);
   };
 
+  /* veprimi: së pari te serveri; kur serveri s'është gati, si më parë (llogaritet këtu dhe ruhet) */
+  const act = async (action: LudoAction, local: () => LudoGameState) => {
+    if (remote) {
+      setSaving(true);
+      setSaveFailed(false);
+      const res = await remote(action);
+      if (res.ok) { setGameState(normalizeLudoState(res.state)); setSaving(false); return; }
+      if (res.reason !== 'unavailable') {
+        // lëvizja u refuzua ose dikush tjetër luajti ndërkohë: merr gjendjen e serverit
+        const back = res.state ? normalizeLudoState(res.state) : serverRef.current;
+        setGameState(back);
+        setShown(positionsOf(back));
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
+    void commit(local());
+  };
+
   /* bot turn */
   const botReady = isHost && !busy && gameState.status === 'playing' && isLudoBot(gameState.currentTurn);
   const playBot = useEffectEvent(() => {
     const bot = gameState.players[gameState.currentTurn];
     if (!bot) return;
-    if (!gameState.hasRolled) return void commit(rollAndAutoMove(gameState, bot.id));
+    if (!gameState.hasRolled) return void act({ type: 'roll', bot: bot.id }, () => rollAndAutoMove(gameState, bot.id));
     if (gameState.diceValue === null) return;
     const idx = getMovableTokenIndices(bot, gameState.diceValue).at(0);
-    if (idx !== undefined) void commit(moveLudoToken(gameState, bot.id, idx));
+    if (idx !== undefined) void act({ type: 'move', token: idx, bot: bot.id }, () => moveLudoToken(gameState, bot.id, idx));
   });
   useEffect(() => {
     if (!botReady) return;
@@ -360,13 +383,13 @@ export default function LudoGame({
   /* handle roll */
   const handleRoll = () => {
     if (!isMyTurn || gameState.hasRolled || busy) return;
-    void commit(rollAndAutoMove(gameState, currentPlayerId));
+    void act({ type: 'roll' }, () => rollAndAutoMove(gameState, currentPlayerId));
   };
 
   /* handle move */
   const handleMove = (pid: string, idx: number) => {
     if (pid !== currentPlayerId || !movable.includes(idx)) return;
-    void commit(moveLudoToken(gameState, currentPlayerId, idx));
+    void act({ type: 'move', token: idx }, () => moveLudoToken(gameState, currentPlayerId, idx));
   };
 
   /* renditje fikse, përndryshe DOM-i i zhvendos gurët dhe prishet animacioni */
