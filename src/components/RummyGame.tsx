@@ -10,6 +10,7 @@ import {
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
 import SoundToggle from './SoundToggle';
+import { feltBackground, useTableSkin } from '@/lib/shop';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
 import { ArrowLeft, BookOpen, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
@@ -218,6 +219,7 @@ export default function RummyGame(props: RummyGameProps) {
 }
 
 function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, chatButton }: RummyGameProps) {
+  const tableSkin = useTableSkin();
   const [gameState, setGameState] = useState(serverState);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
@@ -509,7 +511,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
       {/* ── tavolina ── */}
       <div className="rk-table-wrap">
         <div className="rk-rim">
-          <div className="rk-felt">
+          <div className="rk-felt" style={{ background: feltBackground(tableSkin) }}>
             <div className="rk-grid">
               {pile(2, 'tl')}
               <div className="rk-seat-top">{opp(2, false)}</div>

@@ -3,23 +3,9 @@
 // që askush tjetër të mos veprojë në emër të tij.
 // Derisa të ekzekutohet migrimi, faqja punon si më parë (shkrim direkt në tabela).
 import { supabase } from './supabase';
+import { playerSecret } from './playerKey';
 
-const SECRET_KEY = 'gamezone_player_secret';
-
-export function playerSecret(): string {
-  try {
-    let s = window.localStorage.getItem(SECRET_KEY);
-    if (!s) {
-      const a = new Uint8Array(20);
-      window.crypto.getRandomValues(a);
-      s = Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
-      window.localStorage.setItem(SECRET_KEY, s);
-    }
-    return s;
-  } catch {
-    return '';
-  }
-}
+export { playerSecret };
 
 export class RoomError extends Error {
   constructor(public reason: string) { super(reason); this.name = 'RoomError'; }

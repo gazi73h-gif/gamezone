@@ -1,6 +1,7 @@
 'use client';
 import Leaderboard from '../components/Leaderboard';
 import DailyMissions from '../components/DailyMissions';
+import Shop from '../components/Shop';
 import { cleanupRooms, createRoom, joinRoom, RoomError } from '../lib/rooms';
 import GameArt, { GAME_THEME } from '../components/GameArt';
 import React, { useState, useEffect } from 'react';
@@ -298,6 +299,9 @@ export default function HomePage() {
 
       <section className="mt-12">
         <DailyMissions onReward={(t) => setTokens(t)} />
+      </section>
+      <section className="mt-6">
+        <Shop tokens={tokens} onChange={(t) => setTokens(t)} />
       </section>
       <section className="mt-6"><Leaderboard /></section>
 

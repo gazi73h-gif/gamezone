@@ -120,9 +120,9 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
     });
 
      let winnerId: string | null = null;
+     let bestScore = -1;
+     let winnerNick = '';
  if (allFinished) {
-   let bestScore = -1;
-   let winnerNick = '';
    players.forEach((p) => {
      const total = getGrandTotal(updatedSheets[p.player_id]);
      if (total > bestScore) {
@@ -131,9 +131,6 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
        winnerNick = p.nickname;
      }
    });
-   if (winnerNick) {
-     await recordWin(winnerNick, bestScore, 'Yamb', winnerId === currentPlayerId);
-   }
  }
 
 
@@ -150,6 +147,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
       sheets: updatedSheets,
       winnerId,
     });
+    if (winnerNick) await recordWin(winnerNick, bestScore, 'Yamb', winnerId === currentPlayerId);
   };
 
   return (

@@ -7,6 +7,7 @@ import {
 } from '@/lib/ludoLogic';
 import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
+import { useDiceSkin } from '@/lib/shop';
 import Fireworks from '@/components/Fireworks';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
@@ -103,6 +104,7 @@ const SHOW: Record<number, string> = { 1: 'rotateX(0deg) rotateY(0deg)', 6: 'rot
 function Dice({ value, rolling, canRoll, onClick }: {
   value: number | null; rolling: boolean; canRoll: boolean; onClick: () => void;
 }) {
+  const skin = useDiceSkin();
   const v = value ?? 1;
   return (
     <button
@@ -114,9 +116,9 @@ function Dice({ value, rolling, canRoll, onClick }: {
       <span className="ld-scene">
         <span className={`ld-cube ${rolling ? 'ld-rolling' : ''}`} style={rolling ? undefined : { transform: `rotateX(-16deg) rotateY(20deg) ${SHOW[v]}` }}>
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <span key={n} className="ld-face" style={{ transform: `${FACE[n]} translateZ(var(--half))` }}>
+            <span key={n} className="ld-face" style={{ background: skin.face, transform: `${FACE[n]} translateZ(var(--half))` }}>
               <svg viewBox="0 0 100 100" className="w-full h-full">
-                {PIPS[n].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="10" fill={n === 1 ? '#e53935' : '#231942'} />)}
+                {PIPS[n].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="10" fill={n === 1 ? skin.one : skin.pip} />)}
               </svg>
             </span>
           ))}

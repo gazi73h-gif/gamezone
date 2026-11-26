@@ -35,10 +35,10 @@ export function PlayerChip({ id, name, active, bot, color, sub, badge, me, onCli
 }
 
 /* ── tavolina me buzë druri dhe çohë ── */
-export function FeltTable({ children, tone = 'green', className = '' }: { children: React.ReactNode; tone?: 'green' | 'blue' | 'red'; className?: string }) {
+export function FeltTable({ children, tone = 'green', className = '', background }: { children: React.ReactNode; tone?: 'green' | 'blue' | 'red'; className?: string; background?: string }) {
   return (
     <div className={`gk-rim ${className}`}>
-      <div className={`gk-felt gk-felt-${tone}`}>{children}</div>
+      <div className={`gk-felt gk-felt-${tone}`} style={background ? { background } : undefined}>{children}</div>
     </div>
   );
 }

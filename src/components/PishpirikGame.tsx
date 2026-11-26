@@ -6,6 +6,7 @@ import { recordWin } from '@/lib/supabase';
 import { playSound } from '@/lib/sound';
 import { Flame, RotateCcw } from 'lucide-react';
 import { PlayerChip, FeltTable, PlayingCard, CardBack, CardFan, ResultPanel, GameKitStyles, SEAT_COLORS } from './gamekit';
+import { feltBackground, useTableSkin } from '@/lib/shop';
 
 interface PishpirikGameProps {
   gameState: PishpirikGameState;
@@ -22,6 +23,7 @@ export default function PishpirikGame({
   onUpdateState,
   onRestartGame,
 }: PishpirikGameProps) {
+  const tableSkin = useTableSkin();
   const me = gameState.players[currentPlayerId];
   // tingujt: letra e luajtur (dora zvogëlohet) dhe shpërndarja (pakoja zvogëlohet)
   const handCards = Object.values(gameState.players).reduce((a, p) => a + p.hand.length, 0);
@@ -116,7 +118,7 @@ export default function PishpirikGame({
       </div>
 
       {/* tavolina */}
-      <FeltTable tone="green">
+      <FeltTable tone="green" background={feltBackground(tableSkin)}>
         <div className="flex flex-col items-center gap-4 px-4 py-6 min-h-[250px] justify-center">
           <div className="flex items-center justify-center gap-8 sm:gap-14">
             <div className="flex flex-col items-center gap-1.5">
