@@ -359,7 +359,17 @@ async function handleLudo(deps2, input) {
 
 // supabase/functions/ludo-action/entry.ts
 var URL_ = Deno.env.get("SUPABASE_URL") ?? "";
-var KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+function serverKey() {
+  const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (legacy) return legacy;
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    return keys.default ?? Object.values(keys)[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+var KEY = serverKey();
 var H = { apikey: KEY, "content-type": "application/json" };
 if (!KEY.startsWith("sb_")) H.Authorization = `Bearer ${KEY}`;
 var CORS = {

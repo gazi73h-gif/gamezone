@@ -7,7 +7,18 @@ import type { LudoGameState } from '../../../src/lib/ludoLogic';
 declare const Deno: { env: { get(k: string): string | undefined }; serve(h: (req: Request) => Response | Promise<Response>): void };
 
 const URL_ = Deno.env.get('SUPABASE_URL') ?? '';
-const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+// çelësi i serverit: emri i vjetër (SERVICE_ROLE) ose i riu (SECRET_KEYS = {"default":"sb_secret_..."})
+function serverKey(): string {
+  const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (legacy) return legacy;
+  try {
+    const keys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}') as Record<string, string>;
+    return keys.default ?? Object.values(keys)[0] ?? '';
+  } catch {
+    return '';
+  }
+}
+const KEY = serverKey();
 const H: Record<string, string> = { apikey: KEY, 'content-type': 'application/json' };
 if (!KEY.startsWith('sb_')) H.Authorization = `Bearer ${KEY}`; // çelësat e vjetër JWT
 
