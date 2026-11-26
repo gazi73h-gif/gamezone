@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { LOBBY_CHANNEL, LobbyRoom, lobbyRoomsFrom, MAX_SEATS } from '../lib/lobby';
 import { useAccount, bonusAvailable } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
+import { useOnlineCount } from '../lib/online';
 import { UserAvatar } from '../lib/avatars';
 import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight, Pencil, Check, ShieldCheck } from 'lucide-react';
 
@@ -28,6 +29,7 @@ export default function HomePage() {
   const [nickname, setNickname] = useState<string>('');
   const [playerId, setPlayerId] = useState<string>('');
   const account = useAccount();
+  const onlineCount = useOnlineCount();
   // me llogari: ID e llogarisë dhe tokens nga serveri; pa llogari: si mysafir në këtë shfletues
   const myId = account.user?.id ?? playerId;
   const online = !!account.user && account.serverReady === true && !!account.profile;
@@ -142,8 +144,9 @@ export default function HomePage() {
       {/* ── Hero + profili ── */}
       <section className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[1.15fr_1fr] gap-6 lg:gap-10 items-center pt-2 sm:pt-6 pb-10">
         <div>
-          <span className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-mint bg-mint/10 border border-mint/30 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-mint animate-pulse" /> Live, në kohë reale
+          <span data-testid="online-count" className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-mint bg-mint/10 border border-mint/30 px-3 py-1.5 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
+            {onlineCount > 0 ? <><b className="text-sm">{onlineCount}</b> {onlineCount === 1 ? 'lojtar online' : 'lojtarë online'}</> : 'Live, në kohë reale'}
           </span>
           <h1 className="font-display font-bold text-[2.6rem] leading-[1.02] sm:text-6xl mt-4 text-balance">
             Luaj me shokët,<br />

@@ -25,13 +25,17 @@ const metaName = (u: User | null): string => {
 };
 
 // cilat mënyra kyçjeje janë të ndezura në Supabase (butonat shfaqen vetëm atëherë)
+// Facebook fshihet derisa aplikacioni të publikohet te Meta (tani punon vetëm për testerët).
+// Kur të publikohet: ndrysho në true.
+const FACEBOOK_PUBLISHED = false;
+
 async function enabledProviders(): Promise<Record<OAuthProvider, boolean>> {
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
       headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
     });
     const j = await res.json();
-    return { facebook: !!j.external?.facebook, google: !!j.external?.google };
+    return { facebook: FACEBOOK_PUBLISHED && !!j.external?.facebook, google: !!j.external?.google };
   } catch {
     return { facebook: false, google: false };
   }

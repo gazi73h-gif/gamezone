@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fredoka, Nunito } from 'next/font/google';
 import './globals.css';
 import RadioPlayer from '../components/RadioPlayer';
+import { OnlinePresence } from '../lib/online';
 
 const fredoka = Fredoka({ subsets: ['latin', 'latin-ext'], variable: '--font-fredoka', display: 'swap' });
 const nunito = Nunito({ subsets: ['latin', 'latin-ext'], variable: '--font-nunito', display: 'swap' });
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         {children}
         <RadioPlayer />
+        <OnlinePresence />
         <script dangerouslySetInnerHTML={{ __html: "if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }" }} />
       </body>
     </html>
