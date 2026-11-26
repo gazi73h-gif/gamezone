@@ -11,6 +11,7 @@ import { StaleStateError } from '@/lib/roomSync';
 import { playSound } from '@/lib/sound';
 import SoundToggle from './SoundToggle';
 import { feltBackground, useTableSkin } from '@/lib/shop';
+import type { OkeyAction, OkeyResult } from '@/lib/ludoRemote';
 import { useAvatar, UserAvatar } from '@/lib/avatars';
 import { recordWin } from '@/lib/supabase';
 import { ArrowLeft, BookOpen, ListOrdered, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
@@ -24,6 +25,8 @@ interface RummyGameProps {
   onRestartGame?: () => Promise<void>;
   onLeaveRoom?: () => void;
   chatButton?: React.ReactNode;
+  /** rregullat në server: gurët i ndan dhe i kontrollon serveri; secili merr vetëm gurët e vet */
+  remote?: (a: OkeyAction) => Promise<OkeyResult>;
 }
 
 const TURN_MS = 30000; // 30 sekonda për radhë
@@ -218,7 +221,7 @@ export default function RummyGame(props: RummyGameProps) {
   return <OkeyTable {...props} />;
 }
 
-function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, chatButton }: RummyGameProps) {
+function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, chatButton, remote }: RummyGameProps) {
   const tableSkin = useTableSkin();
   const [gameState, setGameState] = useState(serverState);
   const [saving, setSaving] = useState(false);
@@ -234,7 +237,39 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   if (shouldAccept(serverState, gameState)) setGameState(serverState);
   useEffect(() => { serverRef.current = serverState; }, [serverState]);
 
-  const s = gameState;
+  /* lojë në server: te "rooms" gurët janë të mbuluar; gurët e mi vijnë vetëm nga funksioni */
+  const hidden = !!(gameState as { hidden?: boolean }).hidden;
+  const [mine, setMine] = useState<{ gameId: number; round: number; rev: number; hand: RummyGameState['players'][string]['hand'] } | null>(null);
+  const seat = gameState.players[currentPlayerId];
+  const handKnown = !hidden || !seat || (!!mine && mine.gameId === gameState.gameId && mine.round === gameState.round && mine.hand.length === seat.hand.length);
+  const s: RummyGameState = !hidden || !seat ? gameState
+    : { ...gameState, players: { ...gameState.players, [currentPlayerId]: { ...seat, hand: handKnown && mine ? mine.hand : [] } } };
+  const accept = (view: RummyGameState) => {
+    setGameState(view);
+    const mh = view.players[currentPlayerId];
+    if (mh) setMine({ gameId: view.gameId, round: view.round, rev: view.rev, hand: mh.hand });
+  };
+  // gurët e mi mund të kenë ndryshuar (raund i ri, koha më mbaroi, zura vendin e botit): pyet serverin
+  const [turnSeen, setTurnSeen] = useState({ rev: gameState.rev, turn: gameState.currentTurn, leftMe: false });
+  if (turnSeen.rev !== gameState.rev) {
+    setTurnSeen({ rev: gameState.rev, turn: gameState.currentTurn, leftMe: turnSeen.turn === currentPlayerId && gameState.currentTurn !== currentPlayerId });
+  }
+  const needView = hidden && !!seat && !!remote && (!handKnown || (turnSeen.leftMe && (mine?.rev ?? -1) < gameState.rev));
+  const viewKey = needView ? `${gameState.gameId}|${gameState.round}|${gameState.rev}` : '';
+  const askView = useEffectEvent(() => (remote ? remote({ type: 'view' }) : Promise.resolve(null)));
+  useEffect(() => {
+    if (!viewKey) return;
+    let alive = true;
+    void askView().then((res) => {
+      const view = res ? (res.ok ? res.state : res.state) : undefined;
+      if (!alive || !view) return;
+      setGameState(view);
+      const mh = view.players[currentPlayerId];
+      if (mh) setMine({ gameId: view.gameId, round: view.round, rev: view.rev, hand: mh.hand });
+    });
+    return () => { alive = false; };
+  }, [viewKey, currentPlayerId]);
+
   const me = s.players[currentPlayerId];
   const myTurn = s.status === 'playing' && s.currentTurn === currentPlayerId;
   const canDraw = myTurn && !s.hasDrawn && !saving;
@@ -277,6 +312,29 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     return false;
   };
 
+  const REASONS: Record<string, string> = {
+    not_your_turn: 'Nuk është radha jote.', joker: 'Okey-u (Jokeri) nuk mund të hidhet — mbaje për kombinimet.',
+    cannot_finish: 'Për ta mbyllur, 14 gurët e tjerë duhet të jenë të gjithë në kombinime ose 7 çifte.',
+    stale: '', invalid_move: '', not_round_over: '',
+  };
+  /** kryen veprimin te serveri (ose, kur serveri s'është gati, si më parë); kthen gjendjen e re ose null */
+  const act = async (action: OkeyAction, local: () => RummyGameState): Promise<RummyGameState | null> => {
+    if (remote) {
+      setSaving(true);
+      const res = await remote(action);
+      setSaving(false);
+      if (res.ok) { accept(res.state); return res.state; }
+      if (res.reason !== 'unavailable') {
+        if (res.state) accept(res.state);
+        if (action.type !== 'tick') fail(REASONS[res.reason] ?? 'Veprimi nuk u pranua.');
+        return null;
+      }
+      if (hidden) { setToast('⚠️ Serveri i lojës nuk përgjigjet. Provo përsëri.'); return null; }
+    }
+    const next = local();
+    return (await commit(next)) ? next : null;
+  };
+
   const fail = (msg?: string) => { if (msg) setToast(msg); };
   useEffect(() => {
     if (!toast) return;
@@ -312,7 +370,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
       const bot = isRummyBot(s.currentTurn);
       if ((bot && elapsed >= BOT_FALLBACK_MS) || (!bot && s.currentTurn !== currentPlayerId && elapsed >= HUMAN_FALLBACK_MS)) {
         firedRef.current = turnKey + s.rev;
-        void commit(bot ? runBotRummyTurn(s) : autoPlayTurn(s));
+        void act({ type: 'tick' }, () => (bot ? runBotRummyTurn(s) : autoPlayTurn(s)));
         return;
       }
     }
@@ -320,7 +378,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     const mine = s.currentTurn === currentPlayerId;
     if ((mine && left <= 0) || (isHost && !mine && left <= -HOST_GRACE_MS)) {
       firedRef.current = turnKey;
-      void commit(autoPlayTurn(s));
+      void act({ type: 'tick' }, () => autoPlayTurn(s));
     }
   });
   useEffect(() => {
@@ -334,9 +392,8 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const [botTry, setBotTry] = useState(0);
   const botKey = isHost && !saving && s.status === 'playing' && isRummyBot(s.currentTurn) ? turnKey + s.rev : '';
   const playBot = useEffectEvent(() => {
-    let next = runBotRummyTurn(s);
-    if (next === s) next = autoPlayTurn(s); // boti s'gjeti lëvizje: luaj si me kohë të mbaruar
-    void commit(next).finally(() => setBotTry((n) => n + 1));
+    const local = () => { const n = runBotRummyTurn(s); return n === s ? autoPlayTurn(s) : n; }; // boti s'gjeti lëvizje: si me kohë të mbaruar
+    void act({ type: 'tick' }, local).finally(() => setBotTry((n) => n + 1));
   });
   useEffect(() => {
     if (!botKey) return;
@@ -345,7 +402,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   }, [botKey, botTry]);
 
   /* raundi tjetër */
-  const nextRound = useEffectEvent(() => { void commit(startNextRound(s)); });
+  const nextRound = useEffectEvent(() => { void act({ type: 'tick' }, () => startNextRound(s)); });
   const roundOverKey = isHost && s.status === 'roundOver' ? `${s.gameId}|${s.round}` : '';
   useEffect(() => {
     if (!roundOverKey) return;
@@ -368,21 +425,20 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
   const draw = (source: 'deck' | 'left', slot?: number) => {
     if (!canDraw) return fail(myTurn ? undefined : 'Nuk është radha jote.');
     if (source === 'left' && !leftTop) return;
-    const next = drawRummyTile(s, currentPlayerId, source);
-    const newId = next.lastDrawnTileId;
-    if (newId) {
-      const slots = layout.slice();
+    const slots = layout.slice();
+    void act({ type: 'draw', from: source }, () => drawRummyTile(s, currentPlayerId, source)).then((next) => {
+      const newId = next?.lastDrawnTileId;
+      if (!newId) return;
       const target = slot !== undefined && slots[slot] === null ? slot : slots.indexOf(null);
       if (target >= 0) { slots[target] = newId; setRack({ key: rackKey, slots }); }
-    }
-    void commit(next);
+    });
   };
 
   const discard = (id: string) => {
     if (!canAct) return fail(myTurn ? 'Merr një gur fillimisht!' : 'Nuk është radha jote.');
     if (byId.get(id)?.isJoker) return fail('Okey-u (Jokeri) nuk mund të hidhet — mbaje për kombinimet.');
     setSelected([]);
-    void commit(discardRummyTile(s, currentPlayerId, id));
+    void act({ type: 'discard', tile: id }, () => discardRummyTile(s, currentPlayerId, id));
   };
 
   const finish = (id?: string) => {
@@ -393,7 +449,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     const r = finishRummyRound(s, currentPlayerId, tileId);
     if (r.error) return fail(r.error);
     setSelected([]);
-    void commit(r.state);
+    void act({ type: 'finish', tile: tileId }, () => r.state);
   };
 
   const moveTile = (id: string, to: number) => {
@@ -637,7 +693,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
             <ScoreTable s={s} me={currentPlayerId} />
             <div className="flex flex-wrap justify-center gap-2 mt-5">
               {s.status === 'roundOver' ? (
-                <button onClick={() => void commit(startNextRound(s))} disabled={saving} className="gz-btn font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer">
+                <button onClick={() => void act({ type: 'next' }, () => startNextRound(s))} disabled={saving} className="gz-btn font-display font-semibold text-lg px-6 py-3 rounded-2xl cursor-pointer">
                   Raundi {s.round + 1} →
                 </button>
               ) : (
