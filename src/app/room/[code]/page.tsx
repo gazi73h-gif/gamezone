@@ -199,24 +199,10 @@ export default function RoomLobbyPage() {
         const realPlayers = playersData.filter(
           (p) => !BOT_IDS.includes(p.player_id)
         );
-        const realCount = realPlayers.length;
         const storedHostId = localStorage.getItem('gamezone_player_id') || '';
         const isHostNow = roomData.host_id === storedHostId;
 
-        // AUTO-START me Bot: vetëm 1 lojtar real + loja është në pritje
-        if (
-          isHostNow &&
-          realCount === 1 &&
-          roomData.status === 'waiting'
-        ) {
-          const viaServer = await serverHandled(roomData.game_type, roomCode, storedHostId, 'start');
-          const gs = viaServer ? null : await buildInitialGameState(roomData.game_type, realPlayers, true);
-          if (viaServer) logGameStart(roomCode, roomData.game_type, 1);
-          if (gs) {
-            await updateRoom(storedHostId, roomCode, { status: 'playing', state: gs }).catch(() => false);
-            logGameStart(roomCode, roomData.game_type, 1);
-          }
-        }
+        // Dhoma pret: krijuesi fton shokët ose shtyp "Fillo me bot" (pa nisje automatike)
 
         const hostHere = realPlayers.some((p) => p.player_id === storedHostId);
         const stateText = JSON.stringify(roomData.game_state ?? '');
@@ -386,6 +372,14 @@ export default function RoomLobbyPage() {
     if (!room || players.length === 0) return;
     resetActivity();
     logGameStart(roomCode, room.game_type, players.length);
+    const real = players.filter((p) => !BOT_IDS.includes(p.player_id));
+    if (real.length === 1) {
+      // vetëm në dhomë: luan kundër botit
+      if (await serverHandled(room.game_type, roomCode, currentPlayerId, 'start')) return;
+      const gs = await buildInitialGameState(room.game_type, real, true);
+      if (gs) await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: gs });
+      return;
+    }
 
     if (room.game_type === 'yamb') {
       const initialSheets: Record<string, ReturnType<typeof createEmptySheet>> = {};
@@ -675,6 +669,7 @@ export default function RoomLobbyPage() {
   const notice = (room.game_state as { notice?: string; joined?: string[] } | null);
   const botLeft = notice?.notice === 'bot-left';
   const canStart = isHost || players.length >= 2;
+  const alone = players.filter((p) => !BOT_IDS.includes(p.player_id)).length === 1;
 
   return (
     <div className="relative min-h-screen">
@@ -751,13 +746,19 @@ export default function RoomLobbyPage() {
                   🤖➜👋 Boti u largua — u bashkua {notice?.joined?.join(', ') || 'një lojtar'}. Filloni një lojë të re bashkë!
                 </p>
               )}
+              {canStart && alone && !botLeft && (
+                <p className="mb-3 text-center text-sm text-mute">
+                  Fto një shok me kodin ose me WhatsApp — ose fillo menjëherë kundër botit.
+                </p>
+              )}
               {canStart ? (
                 <button
                   onClick={handleStartGame}
+                  data-testid="start-game"
                   className="gz-btn w-full flex items-center justify-center gap-2 font-display font-semibold text-xl py-4 rounded-2xl cursor-pointer"
                 >
                   <Play className="w-5 h-5 fill-current" />
-                  {botLeft ? 'Filloni një lojë të re' : 'Fillo lojën'}
+                  {botLeft ? 'Filloni një lojë të re' : alone ? 'Fillo me bot 🤖' : 'Fillo lojën'}
                 </button>
               ) : (
                 <p className="flex items-center justify-center gap-2 text-sm font-bold text-mute py-4 rounded-2xl bg-white/5">
