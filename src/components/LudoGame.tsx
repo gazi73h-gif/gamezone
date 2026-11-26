@@ -428,10 +428,10 @@ export default function LudoGame({
   const BOARD_SIZE = 15;
 
   return (
-    <div className="h-full flex flex-col select-none">
+    <div className="ld-root h-full flex flex-col select-none">
 
       {/* radha */}
-      <div className="flex justify-center px-3 pt-2 shrink-0">
+      <div className="ld-turn flex justify-center px-3 pt-2 shrink-0">
         <div
           className="flex items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full font-display font-semibold text-white shadow-lg"
           style={{ background: `linear-gradient(180deg, ${ZONE[curColor].light}, ${ZONE[curColor].dark})` }}
@@ -442,7 +442,7 @@ export default function LudoGame({
       </div>
 
       {/* board: sa më i madh që lejon ekrani */}
-      <div className="flex-1 min-h-0 flex items-center justify-center px-2 pt-5 pb-2" style={{ containerType: 'size' }}>
+      <div className="ld-board flex-1 min-h-0 flex items-center justify-center px-2 pt-5 pb-2" style={{ containerType: 'size' }}>
         <div className="relative aspect-square" style={{ width: 'min(100cqw, 100cqh, 640px)' }}>
           {/* outer border ring */}
           <div className="absolute inset-0 rounded-[22px]" style={{ background: 'linear-gradient(180deg, #2b2470, #1a1550)', padding: 6, boxShadow: '0 24px 50px -16px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.15)' }}>
@@ -623,13 +623,13 @@ export default function LudoGame({
       </div>
 
       {/* ── Lojtarët dhe zari ── */}
-      <div className="w-full max-w-2xl mx-auto px-3 pb-3 shrink-0">
+      <div className="ld-side w-full max-w-2xl mx-auto px-3 pb-3 shrink-0">
         <div className={`text-center text-xs sm:text-sm font-semibold mb-2 min-h-[20px] ${saveFailed ? 'text-coral' : 'text-mute'}`}>
           {saveFailed ? '⚠️ Lëvizja nuk u ruajt. Kontrollo internetin dhe provo përsëri.' : rolling ? 'Zari po rrotullohet…' : gameState.lastActionText}
         </div>
 
-        <div className="gz-panel rounded-[26px] p-2 flex items-center gap-2">
-          <div className="flex-1 min-w-0 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${gameState.playerOrder.length}, minmax(0, 1fr))` }}>
+        <div className="ld-panel gz-panel rounded-[26px] p-2 flex items-center gap-2">
+          <div className="ld-grid flex-1 min-w-0 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${gameState.playerOrder.length}, minmax(0, 1fr))` }}>
             {gameState.playerOrder.map((pid) => {
               const p = gameState.players[pid];
               if (!p) return null;
@@ -681,6 +681,21 @@ export default function LudoGame({
 
       {/* animations */}
       <style>{`
+        /* telefoni horizontal: tabela majtas sa më e madhe, lojtarët dhe zari djathtas */
+        @media (orientation: landscape) and (max-height: 760px) {
+          .ld-root { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 34%); grid-template-rows: auto minmax(0, 1fr); }
+          .ld-board { grid-column: 1; grid-row: 1 / span 2; padding-top: 4px; padding-bottom: 6px; }
+          .ld-turn { grid-column: 2; grid-row: 1; padding-top: 4px; }
+          .ld-turn > div { font-size: 13px; }
+          .ld-side { grid-column: 2; grid-row: 2; align-self: center; max-width: none; padding-bottom: 6px; }
+          .ld-panel { flex-direction: column; gap: 4px; }
+          .ld-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; width: 100%; }
+        }
+        @media (orientation: landscape) and (max-height: 560px) {
+          .ld-grid > div { padding: 5px 4px 4px; gap: 2px; }
+          .ld-grid > div > div:first-child { width: 30px; height: 30px; font-size: 11px; }
+          .ld-dice { --s: 48px; --half: 24px; }
+        }
         .ld-dice { --s: 60px; --half: 30px; width: calc(var(--s) + 8px); height: calc(var(--s) + 8px); display: grid; place-items: center;
           background: none; border: none; padding: 0; border-radius: 18px; cursor: default; }
         .ld-dice.ld-can { cursor: pointer; animation: ld-glow 1.3s ease-in-out infinite; }
