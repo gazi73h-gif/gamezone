@@ -1,5 +1,6 @@
 'use client';
 import Leaderboard from '../components/Leaderboard';
+import DailyMissions from '../components/DailyMissions';
 import GameArt, { GAME_THEME } from '../components/GameArt';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -9,16 +10,20 @@ import { useAccount, bonusAvailable, ACCOUNTS_OPEN } from '../lib/account';
 import AccountMenu from '../components/AccountMenu';
 import { useOnlineCount } from '../lib/online';
 import { UserAvatar } from '../lib/avatars';
-import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight, Pencil, Check, ShieldCheck } from 'lucide-react';
+import { Coins, Gift, Users, Play, LogIn, Bot, Zap, Smartphone, ArrowRight, Pencil, Check, ShieldCheck, Dices } from 'lucide-react';
+
+// nofkë e rastësishme, që lojtari i ri të luajë menjëherë
+const NICK_WORDS = ['Ujku', 'Shqiponja', 'Luani', 'Tigri', 'Ariu', 'Skifteri', 'Dragoi', 'Rrufeja', 'Yllka', 'Zjarri', 'Mbreti', 'Kampioni', 'Fantazma', 'Shigjeta', 'Gjeniu', 'Bomba'];
+const randomNick = () => `${NICK_WORDS[Math.floor(Math.random() * NICK_WORDS.length)]}_${Math.floor(10 + Math.random() * 90)}`;
 
 interface GameInfo { id: string; title: string; subtitle: string; players: string; badge?: string; }
 
 const GAMES: GameInfo[] = [
   { id: 'ludo', title: 'Ludo', subtitle: 'Mos u zemëro! Çoji 4 figurat në shtëpi', players: '2 - 4', badge: 'Popullore' },
   { id: 'pishpirik', title: 'Pishpirik', subtitle: 'Loja tradicionale shqiptare me letra', players: '2 ose 4' },
-  { id: 'rummy', title: 'Okey', subtitle: 'Okey klasik me tregues, Okey dhe 7 çifte', players: '2 - 4' },
+  { id: 'rummy', title: 'Okey', subtitle: 'Okey klasik · 4 raunde, çifte dhe Okey', players: '2 - 4' },
   { id: 'uno', title: 'UNO Shqip', subtitle: 'Letra me ngjyra dhe karta speciale', players: '2 - 6' },
-  { id: 'yamb', title: 'Yamb', subtitle: 'Zarat dhe tabela e pikëve', players: '1 - 4', badge: 'E re' },
+  { id: 'yamb', title: 'Yamb', subtitle: 'Zarat dhe tabela e pikëve', players: '1 - 4' },
   { id: 'shah', title: 'Shah', subtitle: 'Strategji 1 me 1 ose kundër AI', players: '1 - 2' },
 ];
 
@@ -42,6 +47,7 @@ export default function HomePage() {
   const [tokens, setTokens] = useState<number>(1000);
   const [canClaimDaily, setCanClaimDaily] = useState<boolean>(false);
   const [joinCode, setJoinCode] = useState<string>('');
+  const [invite, setInvite] = useState('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [openRooms, setOpenRooms] = useState<LobbyRoom[]>([]);
@@ -78,17 +84,20 @@ export default function HomePage() {
     const storedNick = localStorage.getItem('gamezone_nickname'); if (storedNick) setNickname(storedNick);
     const storedTokens = localStorage.getItem('gamezone_tokens'); if (storedTokens) setTokens(parseInt(storedTokens, 10)); else localStorage.setItem('gamezone_tokens', '1000');
     if (localStorage.getItem('gamezone_last_bonus') !== new Date().toDateString()) setCanClaimDaily(true);
+    const kod = new URLSearchParams(window.location.search).get('kod');
+    if (kod && /^\d{4}$/.test(kod)) { setJoinCode(kod); setInvite(kod); }
   }, []);
   const handleSaveNickname = (val: string) => { setNickname(val); localStorage.setItem('gamezone_nickname', val); };
+  const autoNick = () => { const n = randomNick(); handleSaveNickname(n); return n; };
   const claimDailyBonus = () => { if (!canClaimDaily) return; const nb = tokens + 250; setTokens(nb); setCanClaimDaily(false); localStorage.setItem('gamezone_tokens', nb.toString()); localStorage.setItem('gamezone_last_bonus', new Date().toDateString()); };
 
   const handleCreateRoom = async (gameId: string) => {
-    if (!nickname.trim()) { setErrorMsg('Ju lutem shkruani një nofkë (emër) përpara se të filloni!'); return; }
+    const nick = nickname.trim() || autoNick();
     setErrorMsg(''); setLoading(true);
     try {
       const code = Math.floor(1000 + Math.random() * 9000).toString();
       const { error: re } = await supabase.from('rooms').insert([{ code, game_type: gameId, host_id: myId, status: 'waiting' }]); if (re) throw re;
-      const seat = { room_code: code, player_id: myId, nickname: nickname.trim(), seat_order: 1 };
+      const seat = { room_code: code, player_id: myId, nickname: nick, seat_order: 1 };
       let { error: pe } = await supabase.from('room_players').insert([{ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }]);
       if (pe?.code === 'PGRST204') ({ error: pe } = await supabase.from('room_players').insert([seat]));
       if (pe) throw pe;
@@ -97,14 +106,14 @@ export default function HomePage() {
   };
 
   const joinRoomByCode = async (targetCode: string) => {
-    if (!nickname.trim()) { setErrorMsg('Ju lutem shkruani një nofkë përpara se të hyni në dhomë!'); return; }
+    const nick = nickname.trim() || autoNick();
     if (targetCode.length !== 4) { setErrorMsg('Kodi i dhomës duhet të ketë saktësisht 4 shifra.'); return; }
     setErrorMsg(''); setLoading(true);
     try {
       const { data: room, error: fe } = await supabase.from('rooms').select('*').eq('code', targetCode).single();
       if (fe || !room) { setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.'); setLoading(false); return; }
       const { data: players } = await supabase.from('room_players').select('*').eq('room_code', targetCode);
-      const seat = { room_code: targetCode, player_id: myId, nickname: nickname.trim(), seat_order: (players?.length || 0) + 1 };
+      const seat = { room_code: targetCode, player_id: myId, nickname: nick, seat_order: (players?.length || 0) + 1 };
       let { error: je } = await supabase.from('room_players').upsert({ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }, { onConflict: 'room_code,player_id' });
       if (je?.code === 'PGRST204') ({ error: je } = await supabase.from('room_players').upsert(seat, { onConflict: 'room_code,player_id' }));
       if (je) throw je;
@@ -163,6 +172,11 @@ export default function HomePage() {
         </div>
 
         <div className="gz-panel rounded-[28px] p-5 sm:p-6">
+          {invite && (
+            <p className="mb-4 bg-mint/10 border border-mint/40 text-mint font-bold text-sm px-4 py-2.5 rounded-2xl" data-testid="invite">
+              🎉 Je ftuar në dhomën <b className="tracking-widest">{invite}</b> — shkruaj nofkën dhe shtyp <b>Hyr</b>!
+            </p>
+          )}
           {account.user && !editingNick ? (
             /* i kyçur: emri dihet, s'ka nevojë për kutinë e nofkës */
             <div className="flex items-center gap-3">
@@ -184,6 +198,12 @@ export default function HomePage() {
                 <UserAvatar src={account.avatar} name={nickname} className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8b7cf6] to-[#ff5db1] font-display font-bold text-lg" />
                 <input id="nick" type="text" value={nickname} autoFocus={editingNick} onChange={(e) => handleSaveNickname(e.target.value)} onBlur={() => { if (online && nickname.trim() && nickname !== account.profile?.nickname) void account.saveNickname(nickname); }} placeholder="Nofka jote, p.sh. Arben_KS" maxLength={18}
                   className="gz-input w-full min-w-0 rounded-2xl px-4 py-3 text-ink placeholder:text-mute/60 font-semibold" />
+                {!editingNick && (
+                  <button type="button" onClick={() => handleSaveNickname(randomNick())} aria-label="Nofkë e rastësishme" title="Nofkë e rastësishme"
+                    className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-gold cursor-pointer transition">
+                    <Dices className="w-5 h-5" />
+                  </button>
+                )}
                 {editingNick && (
                   <button type="submit" aria-label="Ruaj nofkën" className="grid place-items-center w-12 h-12 shrink-0 rounded-2xl bg-mint text-night cursor-pointer">
                     <Check className="w-5 h-5" />
@@ -291,9 +311,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-12"><Leaderboard /></section>
+      <section className="mt-12">
+        <DailyMissions onReward={(t) => setTokens(t)} />
+      </section>
+      <section className="mt-6"><Leaderboard /></section>
 
-      <footer className="mt-12 text-center text-xs text-mute/70">GameZone · Lojëra tavoline &amp; letra në shqip</footer>
+      <footer className="mt-12 text-center text-xs text-mute/70 space-x-2">
+        <span>GameZone · Lojëra tavoline &amp; letra në shqip</span>
+        <span>·</span><a href="/privatesia" className="underline hover:text-ink">Privatësia</a>
+      </footer>
     </div>
   );
 }

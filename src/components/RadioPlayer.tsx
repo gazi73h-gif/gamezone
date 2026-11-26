@@ -57,6 +57,8 @@ export default function RadioPlayer() {
 
       <button
         onClick={handleToggle}
+        aria-label={isPlaying ? 'Ndalo radion' : 'Radio Live'}
+        title={isPlaying ? 'Ndalo radion' : 'Radio Live'}
         className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-2xl border text-xs font-extrabold transition cursor-pointer ${
           isPlaying
             ? 'bg-red-600/95 hover:bg-red-500 border-red-400 text-white'
@@ -64,7 +66,7 @@ export default function RadioPlayer() {
         }`}
       >
         <Radio className={`w-4 h-4 ${isPlaying ? 'text-white animate-pulse' : 'text-amber-400'}`} />
-        <span>
+        <span className="hidden sm:inline">
           {isLoading ? 'Duke u lidhur...' : isPlaying ? 'Ndalo Radion' : 'Radio Live'}
         </span>
         {isPlaying ? (

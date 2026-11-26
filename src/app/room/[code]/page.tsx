@@ -30,6 +30,7 @@ import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
 import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
 import { CHAT_GAMES, useRoomChat } from '../../../lib/chat';
+import { trackGame } from '../../../lib/daily';
 import { ChatButton, ChatBubbles } from '../../../components/RoomChat';
 
 interface Player {
@@ -56,6 +57,24 @@ const GAME_NAMES: Record<string, string> = {
   ludo: 'Ludo (Mos u zemëro)',
   rummy: 'Okey',
 };
+
+/* Fto shokët me një prekje: WhatsApp, Viber ose ndarja e telefonit. Linku hap faqen me kodin gati. */
+function InviteButtons({ code, game }: { code: string; game: string }) {
+  const link = typeof window !== 'undefined' ? `${window.location.origin}/?kod=${code}` : '';
+  const text = `Eja luaj ${game} me mua në GameZone! 🎲 Kodi: ${code}\n${link}`;
+  const share = async () => {
+    if (navigator.share) { try { await navigator.share({ title: 'GameZone', text }); return; } catch { return; } }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+  const btn = 'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-sm font-extrabold transition cursor-pointer';
+  return (
+    <div className="flex gap-2 mt-3" data-testid="invite-buttons">
+      <a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer" className={`${btn} bg-[#25d366]/15 hover:bg-[#25d366]/25 text-[#5ff09a] border border-[#25d366]/40`}>WhatsApp</a>
+      <a href={`viber://forward?text=${encodeURIComponent(text)}`} className={`${btn} bg-[#7360f2]/15 hover:bg-[#7360f2]/25 text-[#b3a8ff] border border-[#7360f2]/40`}>Viber</a>
+      <button type="button" onClick={() => void share()} className={`${btn} bg-white/5 hover:bg-white/10 border border-white/10`}>Fto…</button>
+    </div>
+  );
+}
 
 // Kohëzgjatja maksimale e mosaktivitetit: 5 minuta (300,000 ms)
 const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
@@ -450,6 +469,11 @@ export default function RoomLobbyPage() {
   // Baneri "Duke luajtur me Bot AI" — u largua sipas kërkesës
   const BotBanner = null;
 
+  /* misionet ditore: numëro lojën kur nis */
+  const gameKey = room?.status === 'playing' && room.game_state && players.some((p) => p.player_id === currentPlayerId)
+    ? `${room.code}|${(room.game_state as { gameId?: number }).gameId ?? 'x'}` : '';
+  useEffect(() => { if (gameKey && room) trackGame(room.game_type, gameKey); }, [gameKey, room]);
+
   /* chat-i i dhomës (Ludo, UNO, Yamb, Okey) */
   const chatEnabled = !!room && room.status === 'playing' && CHAT_GAMES.includes(room.game_type) && !!currentPlayerId;
   const chat = useRoomChat(roomCode, currentPlayerId, chatEnabled);
@@ -701,6 +725,7 @@ export default function RoomLobbyPage() {
                 {copied ? 'U kopjua' : 'Kopjo'}
               </button>
             </div>
+            <InviteButtons code={room.code} game={GAME_NAMES[room.game_type] || 'GameZone'} />
 
             {/* lojtarët */}
             <div className="flex items-center justify-between mt-6 mb-3">

@@ -134,7 +134,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
      }
    });
    if (winnerNick) {
-     await recordWin(winnerNick, bestScore, 'Yamb');
+     await recordWin(winnerNick, bestScore, 'Yamb', winnerId === currentPlayerId);
    }
  }
 

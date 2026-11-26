@@ -61,8 +61,8 @@ export default function Leaderboard() {
       </div>
 
       {leaders.length === 0 ? (
-        <div className="text-center py-10 rounded-3xl border border-dashed border-white/15">
-          <Crown className="w-9 h-9 text-gold/70 mx-auto mb-2" />
+        <div className="text-center py-5 rounded-3xl border border-dashed border-white/15">
+          <Crown className="w-7 h-7 text-gold/70 mx-auto mb-1" />
           <p className="font-display font-semibold text-lg">Ende pa kampionë!</p>
           <p className="text-sm text-mute mt-1">Fito një lojë dhe emri yt del i pari këtu.</p>
         </div>
