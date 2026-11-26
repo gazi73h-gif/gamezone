@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase, recordWin } from '../lib/supabase';
+import { recordWin } from '../lib/supabase';
 import {
   YambGameState, ColumnKey, RowKey, ROWS_ORDER, ROW_LABELS,
   calculateScore, canSelectCell, getColumnTotals, getGrandTotal, createEmptySheet
@@ -9,6 +9,7 @@ import {
 import { Dices, Lock, Trophy, Bell } from 'lucide-react';
 import { PlayerChip, GameKitStyles, SEAT_COLORS } from './gamekit';
 import { playSound } from '../lib/sound';
+import { updateRoom } from '../lib/rooms';
 
 interface Player {
   player_id: string;
@@ -65,10 +66,7 @@ export default function YambGame({ roomCode, gameState, players, currentPlayerId
 
   const updateGameState = async (newState: YambGameState) => {
     setBusy(true);
-    await supabase
-      .from('rooms')
-      .update({ game_state: newState })
-      .eq('code', roomCode);
+    await updateRoom(currentPlayerId, roomCode, { state: newState }).catch(() => false);
     setBusy(false);
   };
 

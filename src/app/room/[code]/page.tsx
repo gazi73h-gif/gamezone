@@ -21,6 +21,7 @@ import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
 import { saveRoomState } from '../../../lib/roomSync';
+import { closeRoom, leaveRoom, updateRoom } from '../../../lib/rooms';
 
 // statistikat: sa lojëra niset (serveri injoron dyfishimet; gabimet s'e prekin lojën)
 const logGameStart = (room: string, game: string, players: number) => {
@@ -196,10 +197,7 @@ export default function RoomLobbyPage() {
         ) {
           const gs = await buildInitialGameState(roomData.game_type, realPlayers, true);
           if (gs) {
-            await supabase
-              .from('rooms')
-              .update({ status: 'playing', game_state: gs })
-              .eq('code', roomCode);
+            await updateRoom(storedHostId, roomCode, { status: 'playing', state: gs }).catch(() => false);
             logGameStart(roomCode, roomData.game_type, 1);
           }
         }
@@ -219,16 +217,13 @@ export default function RoomLobbyPage() {
           Date.now() - lastRestartRef.current > 5000
         ) {
           lastRestartRef.current = Date.now();
-          await supabase
-            .from('rooms')
-            .update({ status: 'waiting', game_state: { notice: 'bot-left', joined: joiners.map((p) => p.nickname) } })
-            .eq('code', roomCode);
+          await updateRoom(storedHostId, roomCode, { status: 'waiting', state: { notice: 'bot-left', joined: joiners.map((p) => p.nickname) } }).catch(() => false);
         } else if (isHostNow && hostHere && roomData.status === 'playing' && SEAT_GAMES.includes(roomData.game_type)) {
           // Ludo & Okey pa bot: kush largohet zëvendësohet nga boti; në Ludo lojtari i ri zë një ngjyrë të lirë
           const next = syncSeats(roomData.game_type, roomData.game_state, realPlayers);
           if (next) {
             try {
-              await saveRoomState(roomCode, next);
+              await saveRoomState(roomCode, next, storedHostId);
             } catch {
               // dikush tjetër e ndryshoi lojën ndërkohë; provohet sërish në kontrollin e radhës
             }
@@ -298,8 +293,7 @@ export default function RoomLobbyPage() {
       if (elapsed >= INACTIVITY_LIMIT_MS) {
         isClosingRef.current = true;
         try {
-          await supabase.from('room_players').delete().eq('room_code', roomCode);
-          await supabase.from('rooms').delete().eq('code', roomCode);
+          await closeRoom(localStorage.getItem('gamezone_player_id') || '', roomCode);
         } catch {}
         alert('Dhoma u mbyll automatikisht për shkak të mosaktivitetit për 5 minuta.');
         router.push('/');
@@ -362,19 +356,10 @@ export default function RoomLobbyPage() {
   };
 
   const handleLeaveRoom = async () => {
-    if (currentPlayerId) {
-      await supabase
-        .from('room_players')
-        .delete()
-        .eq('room_code', roomCode)
-        .eq('player_id', currentPlayerId);
-    }
     // Dhoma fshihet vetëm kur s'mbetet askush; nëse largohet hosti, dhoma i kalon lojtarit të radhës
     const remaining = players.filter((p) => p.player_id !== currentPlayerId && !BOT_IDS.includes(p.player_id));
-    if (remaining.length === 0) {
-      await supabase.from('rooms').delete().eq('code', roomCode);
-    } else if (room?.host_id === currentPlayerId) {
-      await supabase.from('rooms').update({ host_id: remaining[0].player_id }).eq('code', roomCode);
+    if (currentPlayerId) {
+      try { await leaveRoom(currentPlayerId, roomCode, remaining.map((p) => p.player_id), room?.host_id === currentPlayerId); } catch { /* largohet gjithsesi */ }
     }
     router.push('/');
   };
@@ -404,50 +389,32 @@ export default function RoomLobbyPage() {
         winnerId: null,
       };
 
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'pishpirik') {
       const initialState = initPishpirikGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'shah') {
       const initialState = initChessGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'uno') {
       const initialState = initUnoGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'ludo') {
       const initialState = initLudoGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else if (room.game_type === 'rummy') {
       const initialState = initRummyGame(
         players.map((p) => ({ id: p.player_id, nickname: p.nickname }))
       );
-      await supabase
-        .from('rooms')
-        .update({ status: 'playing', game_state: initialState })
-        .eq('code', roomCode);
+      await updateRoom(currentPlayerId, roomCode, { status: 'playing', state: initialState });
     } else {
       alert('Kjo lojë do të shtohet në hapat e radhës!');
     }
@@ -568,7 +535,7 @@ export default function RoomLobbyPage() {
         roomCode={room.code}
         onUpdateState={async (ns) => {
           resetActivity();
-          await saveRoomState(roomCode, ns);
+          await saveRoomState(roomCode, ns, currentPlayerId);
         }}
         onRestartGame={handleStartGame}
         onLeaveRoom={handleLeaveRoom}
@@ -589,7 +556,7 @@ export default function RoomLobbyPage() {
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
               resetActivity();
-              await saveRoomState(roomCode, newState);
+              await saveRoomState(roomCode, newState, currentPlayerId);
             }}
             onRestartGame={handleStartGame}
           />
@@ -627,7 +594,7 @@ export default function RoomLobbyPage() {
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
               resetActivity();
-              await supabase.from('rooms').update({ game_state: newState }).eq('code', roomCode);
+              await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
             onRestartGame={handleStartGame}
           />
@@ -650,7 +617,7 @@ export default function RoomLobbyPage() {
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
               resetActivity();
-              await supabase.from('rooms').update({ game_state: newState }).eq('code', roomCode);
+              await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
             onRestartGame={handleStartGame}
           />
@@ -671,7 +638,7 @@ export default function RoomLobbyPage() {
             isHost={room.host_id === currentPlayerId}
             onUpdateState={async (newState) => {
               resetActivity();
-              await supabase.from('rooms').update({ game_state: newState }).eq('code', roomCode);
+              await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
             onRestartGame={handleStartGame}
           />

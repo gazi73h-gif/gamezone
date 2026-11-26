@@ -1,6 +1,7 @@
 'use client';
 import Leaderboard from '../components/Leaderboard';
 import DailyMissions from '../components/DailyMissions';
+import { cleanupRooms, createRoom, joinRoom, RoomError } from '../lib/rooms';
 import GameArt, { GAME_THEME } from '../components/GameArt';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -61,18 +62,8 @@ export default function HomePage() {
 
   // Pastro dhomat në pritje që askush s'i ka nisur për më shumë se 5 minuta
   useEffect(() => {
-    const cleanup = async () => {
-      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data } = await supabase.from('rooms').select('code').eq('status', 'waiting').lt('created_at', cutoff).limit(50);
-      const old = (data || []).map((r) => r.code);
-      if (old.length === 0) return;
-      // fshi vetëm dhomat pa asnjë lojtar (një dhomë mund të kthehet "në pritje" kur largohet boti)
-      const { data: seated } = await supabase.from('room_players').select('room_code').in('room_code', old);
-      const busy = new Set((seated || []).map((p) => p.room_code));
-      const codes = old.filter((c) => !busy.has(c));
-      if (codes.length === 0) return;
-      await supabase.from('rooms').delete().in('code', codes);
-    };
+    // fshi vetëm dhomat pa asnjë lojtar (një dhomë mund të kthehet "në pritje" kur largohet boti)
+    const cleanup = () => { void cleanupRooms(); };
     cleanup();
     const interval = setInterval(cleanup, 60000);
     return () => clearInterval(interval);
@@ -95,14 +86,11 @@ export default function HomePage() {
     const nick = nickname.trim() || autoNick();
     setErrorMsg(''); setLoading(true);
     try {
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      const { error: re } = await supabase.from('rooms').insert([{ code, game_type: gameId, host_id: myId, status: 'waiting' }]); if (re) throw re;
-      const seat = { room_code: code, player_id: myId, nickname: nick, seat_order: 1 };
-      let { error: pe } = await supabase.from('room_players').insert([{ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }]);
-      if (pe?.code === 'PGRST204') ({ error: pe } = await supabase.from('room_players').insert([seat]));
-      if (pe) throw pe;
+      const code = await createRoom(myId, gameId, nick, account.avatar);
       router.push(`/room/${code}`);
-    } catch { setErrorMsg('Gabim gjatë krijimit të dhomës. Kontrolloni lidhjen me Supabase.'); } finally { setLoading(false); }
+    } catch (e) {
+      setErrorMsg(e instanceof RoomError && e.reason === 'slow_down' ? 'Prit pak — po krijon shumë dhoma njëherësh.' : 'Gabim gjatë krijimit të dhomës. Kontrolloni internetin.');
+    } finally { setLoading(false); }
   };
 
   const joinRoomByCode = async (targetCode: string) => {
@@ -110,15 +98,12 @@ export default function HomePage() {
     if (targetCode.length !== 4) { setErrorMsg('Kodi i dhomës duhet të ketë saktësisht 4 shifra.'); return; }
     setErrorMsg(''); setLoading(true);
     try {
-      const { data: room, error: fe } = await supabase.from('rooms').select('*').eq('code', targetCode).single();
-      if (fe || !room) { setErrorMsg('Kjo dhomë nuk ekziston ose ka përfunduar.'); setLoading(false); return; }
-      const { data: players } = await supabase.from('room_players').select('*').eq('room_code', targetCode);
-      const seat = { room_code: targetCode, player_id: myId, nickname: nick, seat_order: (players?.length || 0) + 1 };
-      let { error: je } = await supabase.from('room_players').upsert({ ...seat, ...(account.avatar ? { avatar_url: account.avatar } : {}) }, { onConflict: 'room_code,player_id' });
-      if (je?.code === 'PGRST204') ({ error: je } = await supabase.from('room_players').upsert(seat, { onConflict: 'room_code,player_id' }));
-      if (je) throw je;
+      await joinRoom(myId, targetCode, nick, account.avatar);
       router.push(`/room/${targetCode}`);
-    } catch { setErrorMsg('Gabim gjatë hyrjes në dhomë.'); } finally { setLoading(false); }
+    } catch (e) {
+      const reason = e instanceof RoomError ? e.reason : '';
+      setErrorMsg(reason === 'no_room' ? 'Kjo dhomë nuk ekziston ose ka përfunduar.' : reason === 'room_full' ? 'Kjo dhomë është plot.' : 'Gabim gjatë hyrjes në dhomë.');
+    } finally { setLoading(false); }
   };
 
 
