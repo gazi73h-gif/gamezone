@@ -407,11 +407,13 @@ export default function LudoGame({
     return (shown[pid] ?? saved).map((pos, idx) => {
       const [y, x] = tokenCenter(color, pos, idx);
       const cell = `${y}-${x}`;
-      const safe = pos >= 0 && pos !== FINISH && STAR_CELLS.has(cell);
+      // vetëm kur guri ka ndaluar aty (jo kur thjesht kalon gjatë kërcimit)
+      const safe = pos === saved[idx] && pos >= 0 && pos !== FINISH && STAR_CELLS.has(cell);
       return { pid, color, idx, pos, x, y, cell, safe, ok: pid === currentPlayerId && movable.includes(idx) };
     });
   });
   const occupied = new Set(tokens.map((tk) => tk.cell));
+  const litStars = new Set(tokens.filter((tk) => tk.safe).map((tk) => tk.cell));
 
   /* ── finished screen ── */
   if (gameState.status === 'finished' && !moving) {
@@ -566,10 +568,11 @@ export default function LudoGame({
                       }}
                     >
                       {/* ylli: fushë e sigurt (shihet lehtë edhe nën gur) */}
+                      {star && litStars.has(`${r + 0.5}-${c + 0.5}`) && <span className="ld-star-lit" aria-hidden />}
                       {star && (
-                        <svg viewBox="0 0 24 24" style={{ width: '60%', height: '60%', opacity: 0.18 }}>
+                        <svg viewBox="0 0 24 24" style={{ position: 'relative', zIndex: 3, width: '60%', height: '60%', opacity: litStars.has(`${r + 0.5}-${c + 0.5}`) ? 0.9 : 0.18 }}>
                           <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"
-                            fill="#78909c" />
+                            fill={litStars.has(`${r + 0.5}-${c + 0.5}`) ? '#b26a00' : '#78909c'} />
                         </svg>
                       )}
                       {/* arrow cells */}
@@ -648,6 +651,12 @@ export default function LudoGame({
                     }}
                   >
                     {tk.ok && <span className="ludo-ring" />}
+                    {tk.safe && (
+                      <svg className="ludo-star-badge" viewBox="0 0 24 24" aria-hidden>
+                        <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"
+                          fill="#ffc83d" stroke="#8a4b00" strokeWidth="1.6" strokeLinejoin="round" />
+                      </svg>
+                    )}
                     {/* key={pos} e nis kërcimin nga fillimi në çdo fushë */}
                     <span key={tk.pos} className="ludo-hop">
                       <Pawn color={tk.color} />
@@ -772,14 +781,33 @@ export default function LudoGame({
           85%  { transform: translateY(0) scale(1.12, 0.86); }
           100% { transform: translateY(0) scale(1); }
         }
-        /* guri mbi yll: shkëlqen, që të duket se është i sigurt */
-        .ludo-safe svg { animation: ludo-safe-glow 1.4s ease-in-out infinite alternate; }
+        /* guri mbi yll: fusha ndriçon me ar, guri shkëlqen dhe mbi kokë i del një yll */
+        .ld-star-lit {
+          position: absolute; inset: 0; z-index: 2; pointer-events: none;
+          background: radial-gradient(circle, #fff6c2 0%, #ffd54f 55%, #ffb300 100%);
+          box-shadow: inset 0 0 0 2px #ff9800, 0 0 10px 3px rgba(255,193,7,0.95);
+          animation: ld-star-lit 1.2s ease-in-out infinite alternate;
+        }
+        @keyframes ld-star-lit {
+          from { box-shadow: inset 0 0 0 2px #ff9800, 0 0 6px 2px rgba(255,193,7,0.8); }
+          to   { box-shadow: inset 0 0 0 2px #ff9800, 0 0 16px 6px rgba(255,193,7,1); }
+        }
+        .ludo-safe .ludo-hop svg { animation: ludo-safe-glow 1.2s ease-in-out infinite alternate; }
         @keyframes ludo-safe-glow {
-          from { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(255,255,255,0.85)); }
-          to   { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #fff) drop-shadow(0 0 14px rgba(255,236,150,0.9)); }
+          from { filter: drop-shadow(0 0 2px #ffc83d) drop-shadow(0 0 5px rgba(255,170,0,0.8)); }
+          to   { filter: drop-shadow(0 0 3px #ffe08a) drop-shadow(0 0 10px #ffb300) drop-shadow(0 0 16px rgba(255,170,0,0.9)); }
+        }
+        .ludo-star-badge {
+          position: absolute; left: 27%; width: 46%; top: -34%; z-index: 1;
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5)) drop-shadow(0 0 4px rgba(255,200,61,0.9));
+          animation: ludo-star-badge 1.2s ease-in-out infinite alternate;
+        }
+        @keyframes ludo-star-badge {
+          from { transform: translateY(0) scale(0.92) rotate(-8deg); }
+          to   { transform: translateY(-14%) scale(1.06) rotate(8deg); }
         }
         .ludo-can-move .ludo-hop { animation: ludo-bob 0.7s ease-in-out infinite alternate; }
-        .ludo-can-move svg { animation: none; }
+        .ludo-can-move .ludo-hop svg { animation: none; }
         .ludo-can-move svg { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px #ffc83d) drop-shadow(0 0 10px #ffc83d); }
         @keyframes ludo-bob {
           from { transform: translateY(0); }
@@ -798,7 +826,8 @@ export default function LudoGame({
         }
         @media (prefers-reduced-motion: reduce) {
           .ludo-can-move .ludo-hop, .ludo-ring { animation: none; }
-          .ludo-safe svg { animation: none; filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #fff); }
+          .ludo-safe .ludo-hop svg { animation: none; filter: drop-shadow(0 0 3px #ffc83d) drop-shadow(0 0 9px #ffb300); }
+          .ld-star-lit, .ludo-star-badge { animation: none; }
         }
       `}</style>
     </div>
