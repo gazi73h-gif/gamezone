@@ -24,6 +24,8 @@ interface RummyGameProps {
   onUpdateState: (newState: RummyGameState) => Promise<void>;
   onRestartGame?: () => Promise<void>;
   onLeaveRoom?: () => void;
+  /** vetëm krijuesi i dhomës: nis lojë të re gjatë lojës */
+  onNewGame?: () => void;
   chatButton?: React.ReactNode;
   /** rregullat në server: gurët i ndan dhe i kontrollon serveri; secili merr vetëm gurët e vet */
   remote?: (a: OkeyAction) => Promise<OkeyResult>;
@@ -221,7 +223,7 @@ export default function RummyGame(props: RummyGameProps) {
   return <OkeyTable {...props} />;
 }
 
-function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, chatButton, remote }: RummyGameProps) {
+function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, onUpdateState, onRestartGame, onLeaveRoom, onNewGame, chatButton, remote }: RummyGameProps) {
   const tableSkin = useTableSkin();
   const [gameState, setGameState] = useState(serverState);
   const [saving, setSaving] = useState(false);
@@ -316,6 +318,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
     not_your_turn: 'Nuk është radha jote.', joker: 'Okey-u (Jokeri) nuk mund të hidhet — mbaje për kombinimet.',
     cannot_finish: 'Për ta mbyllur, 14 gurët e tjerë duhet të jenë të gjithë në kombinime ose 7 çifte.',
     stale: '', invalid_move: '', not_round_over: '',
+    network: '⚠️ Lidhja me serverin u ndërpre. Provo përsëri.',
   };
   /** kryen veprimin te serveri (ose, kur serveri s'është gati, si më parë); kthen gjendjen e re ose null */
   const act = async (action: OkeyAction, local: () => RummyGameState): Promise<RummyGameState | null> => {
@@ -557,6 +560,9 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
         <button onClick={onLeaveRoom} className="rk-chip-btn"><ArrowLeft className="w-4 h-4" /> Dil</button>
         <div className="flex items-center gap-1.5">
           <span className="rk-round">Raundi <b>{s.round}</b><span className="opacity-60">/{TOTAL_ROUNDS}</span></span>
+          {onNewGame && (
+            <button onClick={onNewGame} aria-label="Lojë e re" title="Lojë e re" className="rk-icon-btn"><RotateCcw className="w-4 h-4" /></button>
+          )}
           {chatButton}
           <SoundToggle className="!w-[34px] !h-[34px]" />
           <button onClick={() => setModal('scores')} aria-label="Pikët" className="rk-icon-btn"><ListOrdered className="w-4 h-4" /></button>
@@ -703,6 +709,7 @@ function OkeyTable({ gameState: serverState, currentPlayerId, isHost, roomCode, 
                       <RotateCcw className="w-5 h-5" /> Luaj përsëri
                     </button>
                   )}
+                  {!onRestartGame && <p className="w-full text-center text-sm text-mute">Krijuesi i dhomës e nis lojën e re.</p>}
                   <button onClick={onLeaveRoom} className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 font-bold cursor-pointer">Dil</button>
                 </>
               )}

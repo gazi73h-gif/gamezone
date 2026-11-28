@@ -21,7 +21,7 @@ import RummyGame from '../../../components/RummyGame';
 import { initLudoGame, LudoGameState } from '../../../lib/ludoLogic';
 import { initRummyGame, RummyGameState } from '../../../lib/rummyLogic';
 import { saveRoomState } from '../../../lib/roomSync';
-import { closeRoom, leaveRoom, updateRoom } from '../../../lib/rooms';
+import { closeRoom, leaveRoom, timeoutSignal, updateRoom } from '../../../lib/rooms';
 import { ludoAction, okeyAction, type LudoAction, type OkeyAction } from '../../../lib/ludoRemote';
 
 // Ludo: nisja dhe vendet bëhen nga serveri kur funksioni "ludo-action" është gati
@@ -43,7 +43,7 @@ const logGameStart = (room: string, game: string, players: number) => {
 };
 import { SEAT_GAMES, syncSeats, hasFreeSeat } from '../../../lib/seats';
 
-import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle } from 'lucide-react';
+import { Copy, Check, Users, ArrowLeft, Play, Crown, AlertTriangle, RotateCcw } from 'lucide-react';
 import { CHAT_GAMES, useRoomChat } from '../../../lib/chat';
 import { trackGame } from '../../../lib/daily';
 import { ChatButton, ChatBubbles } from '../../../components/RoomChat';
@@ -103,6 +103,7 @@ export default function RoomLobbyPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [newGameBusy, setNewGameBusy] = useState(false);
 
   // Monitorimi i mosaktivitetit
   const lastActivityRef = useRef<number>(Date.now());
@@ -168,14 +169,31 @@ export default function RoomLobbyPage() {
     const storedId = localStorage.getItem('gamezone_player_id') || '';
     setCurrentPlayerId(storedId);
 
+    // Vetëm një lexim njëkohësisht dhe me afat: në telefon, pas gjumit, kërkesat mund të mbeten pa
+    // përgjigje ose të vijnë me vonesë dhe të mbishkruajnë një gjendje më të re.
+    let inFlight = false;
+    let inFlightSince = 0;
+    let disposed = false;
+    let lastPush = 0;
     const fetchRoomData = async () => {
+      if (disposed || (inFlight && Date.now() - inFlightSince < 15000)) return;
+      inFlight = true;
+      inFlightSince = Date.now();
+      try { await readRoom(); } catch { /* s'ka lidhje: provohet sërish pas pak */ } finally { inFlight = false; }
+    };
+    const readRoom = async () => {
+      const started = Date.now();
       const { data: roomData, error } = await supabase
         .from('rooms')
         .select('*')
         .eq('code', roomCode)
-        .single();
+        .abortSignal(timeoutSignal(10000))
+        .maybeSingle();
+      if (disposed) return;
+      if (error) return; // gabim interneti, jo dhomë e mbyllur
+      if (lastPush > started) return; // ndërkohë erdhi një gjendje më e re live
 
-      if (error || !roomData) {
+      if (!roomData) {
         if (!isClosingRef.current) {
           isClosingRef.current = true;
           alert('Kjo dhomë është mbyllur ose nuk ekziston.');
@@ -190,7 +208,8 @@ export default function RoomLobbyPage() {
         .from('room_players')
         .select('*')
         .eq('room_code', roomCode)
-        .order('seat_order', { ascending: true });
+        .order('seat_order', { ascending: true })
+        .abortSignal(timeoutSignal(10000));
 
       if (playersData) {
         setPlayers(playersData);
@@ -214,6 +233,7 @@ export default function RoomLobbyPage() {
           isHostNow &&
           hostHere &&
           roomData.status === 'playing' &&
+          !SEAT_GAMES.includes(roomData.game_type) && // Ludo/Okey: lojtari i ri zë vendin e botit, loja vazhdon
           hasBot(roomData.game_state) &&
           joiners.length > 0 &&
           Date.now() - lastRestartRef.current > 5000
@@ -238,52 +258,98 @@ export default function RoomLobbyPage() {
 
     fetchRoomData();
 
-    const channel = supabase
-      .channel(`room_sync_${roomCode}`, {
-        config: { broadcast: { self: true } },
-      })
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'room_players', filter: `room_code=eq.${roomCode}` },
-        () => {
-          resetActivity();
-          fetchRoomData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `code=eq.${roomCode}` },
-        (payload) => {
-          resetActivity();
-          setRoom(payload.new as Room);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'rooms', filter: `code=eq.${roomCode}` },
-        () => {
-          if (!isClosingRef.current) {
-            isClosingRef.current = true;
-            alert('Dhoma u mbyll për shkak të mosaktivitetit për 5 minuta.');
-            router.push('/');
+    // Kanali live: kur telefoni fle, lidhja shpesh mbyllet pa u rilidhur. Rilidhet kur bie,
+    // si edhe kur faqja bëhet sërish e dukshme ose kthehet interneti.
+    let channel: RealtimeChannel | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0; // emër i ri në çdo rilidhje: kanali i vjetër hiqet me vonesë
+    const connect = () => {
+      if (disposed) return;
+      clearTimeout(retry);
+      if (channel) void supabase.removeChannel(channel);
+      const ch = supabase
+        .channel(`room_sync_${roomCode}_${Date.now().toString(36)}${++attempt}`, {
+          config: { broadcast: { self: true } },
+        })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'room_players', filter: `room_code=eq.${roomCode}` },
+          () => {
+            resetActivity();
+            fetchRoomData();
           }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `code=eq.${roomCode}` },
+          (payload) => {
+            resetActivity();
+            lastPush = Date.now();
+            setRoom(payload.new as Room);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'rooms', filter: `code=eq.${roomCode}` },
+          () => {
+            if (!isClosingRef.current) {
+              isClosingRef.current = true;
+              alert('Dhoma u mbyll për shkak të mosaktivitetit për 5 minuta.');
+              router.push('/');
+            }
+          }
+        );
+      channel = ch;
+      ch.subscribe((status) => {
+        if (disposed || channel !== ch) return;
+        if (status === 'SUBSCRIBED') fetchRoomData(); // merr çfarë humbi ndërkohë
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(retry);
+          retry = setTimeout(connect, 3000);
         }
-      )
-      .subscribe();
+      });
+    };
+    connect();
 
     const backupInterval = setInterval(fetchRoomData, 2000);
 
+    // U kthye në faqe (ekrani u ndez, u hap sërish aplikacioni) ose u kthye interneti
+    const resume = () => {
+      if (document.visibilityState !== 'visible') return;
+      resetActivity(); // koha në sfond s'llogaritet si mosaktivitet
+      inFlight = false; // kërkesa e nisur para gjumit mund të mos kthehet kurrë
+      fetchRoomData();
+      if (!channel || channel.state !== 'joined') connect();
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', resume);
+
     return () => {
+      disposed = true;
+      clearTimeout(retry);
       clearInterval(backupInterval);
-      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+      window.removeEventListener('pageshow', resume);
+      window.removeEventListener('focus', resume);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [roomCode, router, resetActivity, buildInitialGameState]);
 
   // Kontrolluesi i mosaktivitetit për 5 minuta për çdo dhomë dhe çdo lojë
   useEffect(() => {
+    let lastTick = Date.now();
+    let checking = false;
     const checkInactivity = async () => {
-      if (isClosingRef.current) return;
-      const elapsed = Date.now() - lastActivityRef.current;
+      if (isClosingRef.current || checking) return;
+      // Telefoni ishte në gjumë (oraret ndalen): koha e humbur s'është mosaktivitet i dhomës
+      const now = Date.now();
+      const slept = now - lastTick > 15000;
+      lastTick = now;
+      if (slept || document.visibilityState !== 'visible') { resetActivity(); return; }
+      const elapsed = now - lastActivityRef.current;
       const remainingSec = Math.max(0, Math.ceil((INACTIVITY_LIMIT_MS - elapsed) / 1000));
 
       // Shfaq paralajmërim gjatë 45 sekondave të fundit para mbylljes
@@ -295,12 +361,31 @@ export default function RoomLobbyPage() {
 
       // Nëse kanë kaluar 5 minuta (300,000 ms) pa aktivitet, mbylle dhomën
       if (elapsed >= INACTIVITY_LIMIT_MS) {
-        isClosingRef.current = true;
+        // Para se ta mbyllim për të gjithë: a është kjo pajisje thjesht pa internet, apo dhoma
+        // vërtet s'ka lëvizur? Pa lidhje s'mbyllet asgjë (lojtarët e tjerë mund të jenë duke luajtur).
+        checking = true;
         try {
-          await closeRoom(localStorage.getItem('gamezone_player_id') || '', roomCode);
-        } catch {}
-        alert('Dhoma u mbyll automatikisht për shkak të mosaktivitetit për 5 minuta.');
-        router.push('/');
+          const { data, error } = await supabase.from('rooms').select('code').eq('code', roomCode)
+            .abortSignal(timeoutSignal(8000)).maybeSingle();
+          if (error) { resetActivity(); return; } // pa lidhje: provo sërish më vonë
+          if (!data) {
+            isClosingRef.current = true;
+            alert('Kjo dhomë është mbyllur.');
+            router.push('/');
+            return;
+          }
+          if (Date.now() - lastActivityRef.current < INACTIVITY_LIMIT_MS) return; // ndërkohë pati aktivitet
+          isClosingRef.current = true;
+          try {
+            await closeRoom(localStorage.getItem('gamezone_player_id') || '', roomCode);
+          } catch {}
+          alert('Dhoma u mbyll automatikisht për shkak të mosaktivitetit për 5 minuta.');
+          router.push('/');
+        } catch {
+          resetActivity();
+        } finally {
+          checking = false;
+        }
       }
     };
 
@@ -366,6 +451,24 @@ export default function RoomLobbyPage() {
       try { await leaveRoom(currentPlayerId, roomCode, remaining.map((p) => p.player_id), room?.host_id === currentPlayerId); } catch { /* largohet gjithsesi */ }
     }
     router.push('/');
+  };
+
+  /** Krijuesi nis lojë të re me të gjithë lojtarët që janë në dhomë (edhe gjatë lojës). */
+  const handleNewGame = async (ask: boolean) => {
+    if (!room || !amHost || newGameBusy) return;
+    if (ask && !window.confirm('Të niset një lojë e re me lojtarët në dhomë? Loja që po luhet tani përfundon.')) return;
+    setNewGameBusy(true);
+    try {
+      // Ludo/Okey: serveri nis lojë të re vetëm kur dhoma s'është "duke luajtur"
+      if (SEAT_GAMES.includes(room.game_type) && room.status === 'playing') {
+        await updateRoom(currentPlayerId, roomCode, { status: 'waiting' });
+      }
+      await handleStartGame();
+    } catch {
+      alert('Loja e re nuk u nis. Kontrollo internetin dhe provo përsëri.');
+    } finally {
+      setNewGameBusy(false);
+    }
   };
 
   const handleStartGame = async () => {
@@ -495,7 +598,7 @@ export default function RoomLobbyPage() {
         <span className="w-12 h-12 rounded-full border-4 border-white/10 border-t-gold animate-spin" />
         <span className="font-display text-xl">{canTakeSeat ? 'Duke u bashkuar në lojë...' : 'Loja është plot'}</span>
         <span className="text-sm text-mute">
-          {!canTakeSeat ? 'Prit derisa të lirohet një vend.' : botMatch ? `Boti po largohet — do të filloni një lojë të re me ${hostNick}.` : 'Po të zihet vendi në tavolinë.'}
+          {!canTakeSeat ? 'Prit derisa të lirohet një vend.' : botMatch && !seatGame ? `Boti po largohet — do të filloni një lojë të re me ${hostNick}.` : 'Po të zihet vendi në tavolinë.'}
         </span>
         <button onClick={handleLeaveRoom} className="mt-2 text-sm font-bold text-mute hover:text-ink underline cursor-pointer">Dil</button>
       </div>
@@ -512,6 +615,19 @@ export default function RoomLobbyPage() {
       </div>
     );
   }
+
+  // Butoni "Lojë e re": vetëm krijuesi i dhomës (kur ai del, dhoma dhe butoni i kalojnë lojtarit tjetër)
+  const restartGame = amHost ? () => handleNewGame(false) : undefined;
+  const newGameButton = amHost ? (
+    <button
+      onClick={() => void handleNewGame(true)}
+      disabled={newGameBusy}
+      title="Nis një lojë të re me lojtarët në dhomë"
+      className="flex items-center gap-1.5 bg-gold/15 hover:bg-gold/25 border border-gold/40 text-gold text-xs font-extrabold px-3 py-1.5 rounded-full transition cursor-pointer disabled:opacity-50 shrink-0"
+    >
+      <RotateCcw className="w-3.5 h-3.5" /> <span className="hidden min-[380px]:inline">Lojë e re</span>
+    </button>
+  ) : null;
 
   // Shiriti i përbashkët i lojërave: Dil · loja, dhoma dhe lojtarët · zëri
   const gameBar = (
@@ -533,6 +649,7 @@ export default function RoomLobbyPage() {
             <Users className="inline w-3.5 h-3.5 -mt-0.5" /> {players.length}
           </span>
         </span>
+        {newGameButton}
         {chatButton}
         <SoundToggle />
       </div>
@@ -551,7 +668,8 @@ export default function RoomLobbyPage() {
           resetActivity();
           await saveRoomState(roomCode, ns, currentPlayerId);
         }}
-        onRestartGame={handleStartGame}
+        onRestartGame={restartGame}
+        onNewGame={amHost ? () => void handleNewGame(true) : undefined}
         onLeaveRoom={handleLeaveRoom}
         chatButton={chatEnabled ? <ChatButton onSend={chat.send} className="!w-[34px] !h-[34px]" /> : null}
         remote={(a) => okeyAction(roomCode, currentPlayerId, a)}
@@ -573,7 +691,7 @@ export default function RoomLobbyPage() {
               resetActivity();
               await saveRoomState(roomCode, newState, currentPlayerId);
             }}
-            onRestartGame={handleStartGame}
+            onRestartGame={restartGame}
             remote={(a) => ludoAction(roomCode, currentPlayerId, a)}
           />
         </div>
@@ -612,7 +730,7 @@ export default function RoomLobbyPage() {
               resetActivity();
               await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
-            onRestartGame={handleStartGame}
+            onRestartGame={restartGame}
           />
         </div>
       </div>
@@ -635,7 +753,7 @@ export default function RoomLobbyPage() {
               resetActivity();
               await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
-            onRestartGame={handleStartGame}
+            onRestartGame={restartGame}
           />
         </div>
       </div>
@@ -656,7 +774,7 @@ export default function RoomLobbyPage() {
               resetActivity();
               await updateRoom(currentPlayerId, roomCode, { state: newState });
             }}
-            onRestartGame={handleStartGame}
+            onRestartGame={restartGame}
           />
         </div>
       </div>

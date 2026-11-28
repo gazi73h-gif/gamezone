@@ -162,6 +162,13 @@ function cellBg(r: number, c: number): { bg: string; arrow?: string; star?: bool
   return { bg: '#fff' };
 }
 
+/* fushat me yll (aty guri s'mund të rrëzohet), në formatin e qendrës së gurit "rreshti-kolona" */
+const STAR_CELLS = new Set(
+  Array.from({ length: 15 * 15 }, (_, i) => [Math.floor(i / 15), i % 15])
+    .filter(([r, c]) => cellBg(r, c).star)
+    .map(([r, c]) => `${r + 0.5}-${c + 0.5}`),
+);
+
 /* ───────────── movement ───────────── */
 const HOP_MS = 260;
 const ROLL_MS = 1000; // zari rrotullohet 1 sekondë
@@ -231,6 +238,7 @@ export default function LudoGame({
     const sameGame = serverState.gameId === gameState.gameId
       && serverState.playerOrder.join() === gameState.playerOrder.join();
     if (!sameGame) setShown(positionsOf(serverState));
+    if (saveFailed && !saving) setSaveFailed(false); // loja vazhdoi: hiqe paralajmërimin
   }
 
   useEffect(() => { serverRef.current = serverState; }, [serverState]);
@@ -333,6 +341,7 @@ export default function LudoGame({
         setGameState(back);
         setShown(positionsOf(back));
         setSaving(false);
+        if (res.reason === 'network') setSaveFailed(true);
         return;
       }
       setSaving(false);
@@ -397,7 +406,9 @@ export default function LudoGame({
     const { color, tokens: saved } = gameState.players[pid];
     return (shown[pid] ?? saved).map((pos, idx) => {
       const [y, x] = tokenCenter(color, pos, idx);
-      return { pid, color, idx, pos, x, y, cell: `${y}-${x}`, ok: pid === currentPlayerId && movable.includes(idx) };
+      const cell = `${y}-${x}`;
+      const safe = pos >= 0 && pos !== FINISH && STAR_CELLS.has(cell);
+      return { pid, color, idx, pos, x, y, cell, safe, ok: pid === currentPlayerId && movable.includes(idx) };
     });
   });
   const occupied = new Set(tokens.map((tk) => tk.cell));
@@ -430,6 +441,7 @@ export default function LudoGame({
               <RotateCcw className="w-5 h-5" /> Luaj përsëri
             </button>
           )}
+          {!onRestartGame && <p className="text-sm text-mute">Krijuesi i dhomës e nis lojën e re.</p>}
           <p className="text-xs text-mute mt-3">Dhoma mbetet e hapur — lojtarët e rinj mund të hyjnë.</p>
           <style>{`
             .ld-win { animation: ld-win-in 0.7s cubic-bezier(.2,1.4,.4,1) both; }
@@ -553,9 +565,9 @@ export default function LudoGame({
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                     >
-                      {/* safe star */}
-                      {star && isEmpty && (
-                        <svg viewBox="0 0 24 24" style={{ width: '55%', height: '55%', opacity: 0.35 }}>
+                      {/* ylli: fushë e sigurt (shihet lehtë edhe nën gur) */}
+                      {star && (
+                        <svg viewBox="0 0 24 24" style={{ width: '60%', height: '60%', opacity: 0.18 }}>
                           <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"
                             fill="#78909c" />
                         </svg>
@@ -622,7 +634,8 @@ export default function LudoGame({
                     aria-label={`${gameState.players[tk.pid].nickname}, guri ${tk.idx + 1}`}
                     onClick={() => handleMove(tk.pid, tk.idx)}
                     disabled={!tk.ok}
-                    className={tk.ok ? 'ludo-can-move' : undefined}
+                    className={[tk.ok && 'ludo-can-move', tk.safe && 'ludo-safe'].filter(Boolean).join(' ') || undefined}
+                    title={tk.safe ? 'Mbi yll: këtu nuk mund të rrëzohet' : undefined}
                     style={{
                       position: 'absolute', padding: 0, border: 'none', background: 'none',
                       left: pct(x - width / 2), top: pct(foot - height * PAWN_FOOT),
@@ -759,7 +772,14 @@ export default function LudoGame({
           85%  { transform: translateY(0) scale(1.12, 0.86); }
           100% { transform: translateY(0) scale(1); }
         }
+        /* guri mbi yll: shkëlqen, që të duket se është i sigurt */
+        .ludo-safe svg { animation: ludo-safe-glow 1.4s ease-in-out infinite alternate; }
+        @keyframes ludo-safe-glow {
+          from { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(255,255,255,0.85)); }
+          to   { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #fff) drop-shadow(0 0 14px rgba(255,236,150,0.9)); }
+        }
         .ludo-can-move .ludo-hop { animation: ludo-bob 0.7s ease-in-out infinite alternate; }
+        .ludo-can-move svg { animation: none; }
         .ludo-can-move svg { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px #ffc83d) drop-shadow(0 0 10px #ffc83d); }
         @keyframes ludo-bob {
           from { transform: translateY(0); }
@@ -778,6 +798,7 @@ export default function LudoGame({
         }
         @media (prefers-reduced-motion: reduce) {
           .ludo-can-move .ludo-hop, .ludo-ring { animation: none; }
+          .ludo-safe svg { animation: none; filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #fff); }
         }
       `}</style>
     </div>

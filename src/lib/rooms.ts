@@ -15,9 +15,16 @@ type PgError = { code?: string; message?: string } | null;
 let secure: boolean | null = null; // null = ende s'dihet; false = migrimi s'është ekzekutuar
 const missingFn = (e: PgError) => e?.code === 'PGRST202' || /could not find the function/i.test(e?.message ?? '');
 
+/** Ndalon kërkesën pas `ms`: në telefon, pas gjumit, kërkesa mund të mbetet pa përgjigje përgjithmonë. */
+export function timeoutSignal(ms = 12000): AbortSignal {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 async function rpc<T>(fn: string, args: Record<string, unknown>, fallback: () => Promise<T>): Promise<T> {
   if (secure !== false) {
-    const { data, error } = await supabase.rpc(fn, { ...args, p_secret: playerSecret() });
+    const { data, error } = await supabase.rpc(fn, { ...args, p_secret: playerSecret() }).abortSignal(timeoutSignal());
     if (!error) { secure = true; return data as T; }
     if (!missingFn(error)) {
       const reason = ['no_room', 'room_full', 'slow_down', 'not_allowed', 'not_in_room', 'bad_game'].find((r) => error.message?.includes(r));
